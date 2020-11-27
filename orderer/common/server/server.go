@@ -83,6 +83,13 @@ func (rs *responseSender) DataType() string {
 }
 
 // NewServer creates an ab.AtomicBroadcastServer based on the broadcast target and ledger Reader
+/*
+NewServer函数创建一个server，用于提供AtomicBroadcast服务，
+在server中包含两个Handler，分别用于处理Broadcast数据流和Deliver数据流，
+使用ab.RegisterAtomicBroadcastServer函数将server服务注册进gRPC服务器grpcServer中，
+clusterGRPCServer的服务是在etcdraft的Consenter创建的时候进行注册的，在当前函数中并未体现。
+调用gRPC服务器的Start函数启动监听服务，在给定的端口进行监听，等待gRPC客户端的连接。
+*/
 func NewServer(
 	r *multichannel.Registrar,
 	metricsProvider metrics.Provider,
@@ -155,6 +162,11 @@ func (dmt *deliverMsgTracer) Recv() (*cb.Envelope, error) {
 	return msg, err
 }
 
+/*
+Orederer节点启动时已经在本地gRPC服务器上注册了Orderer排序服务器，并创建了Broadcast服务处理句柄，
+当客户端调用Broadcast()发起服务请求时，会调用s.bh.Handle方法处理请求，
+通过消息句柄调用Handle方法，通过服务器端srv调用srv.Recv()，监听并接收Send接口发送的交易消息请求。
+*/
 // Broadcast receives a stream of messages from a client for ordering
 func (s *server) Broadcast(srv ab.AtomicBroadcast_BroadcastServer) error {
 	logger.Debugf("Starting new Broadcast handler")

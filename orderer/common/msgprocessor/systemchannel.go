@@ -94,13 +94,14 @@ func (s *SystemChannel) ProcessNormalMsg(msg *cb.Envelope) (configSeq uint64, er
 // or, for channel creation.  In the channel creation case, the CONFIG_UPDATE is wrapped into a resulting
 // ORDERER_TRANSACTION, and in the standard CONFIG_UPDATE case, a resulting CONFIG message
 func (s *SystemChannel) ProcessConfigUpdateMsg(envConfigUpdate *cb.Envelope) (config *cb.Envelope, configSeq uint64, err error) {
+	//获取消息中的通道ID
 	channelID, err := protoutil.ChannelID(envConfigUpdate)
 	if err != nil {
 		return nil, 0, err
 	}
 
 	logger.Debugf("Processing config update tx with system channel message processor for channel ID %s", channelID)
-
+	//如果消息ID与当前消息通道ID一致，交给标准通道处理器处理StandardChannel.ProcessConfigUpdateMsg
 	if channelID == s.support.ChannelID() {
 		return s.StandardChannel.ProcessConfigUpdateMsg(envConfigUpdate)
 	}
@@ -110,17 +111,17 @@ func (s *SystemChannel) ProcessConfigUpdateMsg(envConfigUpdate *cb.Envelope) (co
 	logger.Debugf("Processing channel create tx for channel %s on system channel %s", channelID, s.support.ChannelID())
 
 	// If the channel ID does not match the system channel, then this must be a channel creation transaction
-
+	//创建新的应用通道
 	bundle, err := s.templator.NewChannelConfig(envConfigUpdate)
 	if err != nil {
 		return nil, 0, err
 	}
-
+	//构造新的通道交易配置信息（ConfigEnvelope类型）
 	newChannelConfigEnv, err := bundle.ConfigtxValidator().ProposeConfigUpdate(envConfigUpdate)
 	if err != nil {
 		return nil, 0, errors.WithMessagef(err, "error validating channel creation transaction for new channel '%s', could not successfully apply update to template configuration", channelID)
 	}
-
+	//CreateSignedEnvelope分别创建HeaderType_CONFIG和HeaderType_ORDERER_TRANSACTION的配置交易信息
 	newChannelEnvConfig, err := protoutil.CreateSignedEnvelope(cb.HeaderType_CONFIG, channelID, s.support.Signer(), newChannelConfigEnv, msgVersion, epoch)
 	if err != nil {
 		return nil, 0, err
@@ -136,11 +137,13 @@ func (s *SystemChannel) ProcessConfigUpdateMsg(envConfigUpdate *cb.Envelope) (co
 	// check, which although not strictly necessary, is a good sanity check, in case the orderer
 	// has not been configured with the right cert material.  The additional overhead of the signature
 	// check is negligible, as this is the channel creation path and not the normal path.
+	//系统通道的消息过滤器
 	err = s.StandardChannel.filters.Apply(wrappedOrdererTransaction)
 	if err != nil {
 		return nil, 0, err
 	}
 
+	//调用s.support.Sequence获取通道配置序号configSeq
 	return wrappedOrdererTransaction, s.support.Sequence(), nil
 }
 

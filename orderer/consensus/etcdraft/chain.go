@@ -482,6 +482,8 @@ func (c *Chain) Consensus(req *orderer.ConsensusRequest, sender uint64) error {
 // - the local run goroutine if this is leader
 // - the actual leader via the transport mechanism
 // The call fails if there's no leader elected yet.
+//Submit首先将请求消息封装为 submit 结构通过当前 Chain实例的通道 c.submitC 传递给后端处理
+//同时获取当前时刻 raft 集群的 leader 信息。
 func (c *Chain) Submit(req *orderer.SubmitRequest, sender uint64) error {
 	if err := c.isRunning(); err != nil {
 		c.Metrics.ProposalFailures.Add(1)
@@ -492,17 +494,20 @@ func (c *Chain) Submit(req *orderer.SubmitRequest, sender uint64) error {
 	select {
 	case c.submitC <- &submit{req, leadC}:
 		lead := <-leadC
+		//即当前集群中还没有选出一个 leader，那么说明共识功能暂时可不用
+		//所以直接返回 error-“no Raft leader”；
 		if lead == raft.None {
 			c.Metrics.ProposalFailures.Add(1)
 			return errors.Errorf("no Raft leader")
 		}
-
+		//即当前节点不是 raft 集群的 leader，非 leader 不进行消息处理，所以通过 rpc.SendSubmit 方法将消息转发给目标 leader；
 		if lead != c.raftID {
 			if err := c.rpc.SendSubmit(lead, req); err != nil {
 				c.Metrics.ProposalFailures.Add(1)
 				return err
 			}
 		}
+		//这是一个的隐含情况，即当前节点为 leader 的情况，那自然是针对请求消息进行处理，由接收 submitC 通道消息的部分处理
 
 	case <-c.doneC:
 		c.Metrics.ProposalFailures.Add(1)

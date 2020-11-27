@@ -67,7 +67,7 @@ func (bh *Handler) Handle(srv ab.AtomicBroadcast_BroadcastServer) error {
 	addr := util.ExtractRemoteAddress(srv.Context())
 	logger.Debugf("Starting new broadcast loop for %s", addr)
 	for {
-		msg, err := srv.Recv()
+		msg, err := srv.Recv() //阻塞等待新的交易请求
 		if err == io.EOF {
 			logger.Debugf("Received EOF from %s, hangup", addr)
 			return nil
@@ -78,7 +78,7 @@ func (bh *Handler) Handle(srv ab.AtomicBroadcast_BroadcastServer) error {
 		}
 
 		resp := bh.ProcessMessage(msg, addr)
-		err = srv.Send(resp)
+		err = srv.Send(resp) //发送成功处理状态响应消息
 		if resp.Status != cb.Status_SUCCESS {
 			return err
 		}
@@ -147,6 +147,7 @@ func (bh *Handler) ProcessMessage(msg *cb.Envelope, addr string) (resp *ab.Broad
 	}()
 	tracker.BeginValidate()
 
+	//BroadcastChannelSupport解析出消息的通道头部chdr，配置交易消息标志位isConfig、链支持对象processor（ChainSupport类型）
 	chdr, isConfig, processor, err := bh.SupportRegistrar.BroadcastChannelSupport(msg)
 	if chdr != nil {
 		tracker.ChannelID = chdr.ChannelId
@@ -159,7 +160,7 @@ func (bh *Handler) ProcessMessage(msg *cb.Envelope, addr string) (resp *ab.Broad
 
 	if !isConfig {
 		logger.Debugf("[channel: %s] Broadcast is processing normal message from %s with txid '%s' of type %s", chdr.ChannelId, addr, chdr.TxId, cb.HeaderType_name[chdr.Type])
-
+		//processor.ProcessNormalMsg处理普通交易消息
 		configSeq, err := processor.ProcessNormalMsg(msg)
 		if err != nil {
 			logger.Warningf("[channel: %s] Rejecting broadcast of normal message from %s because of error: %s", chdr.ChannelId, addr, err)
@@ -168,11 +169,13 @@ func (bh *Handler) ProcessMessage(msg *cb.Envelope, addr string) (resp *ab.Broad
 		tracker.EndValidate()
 
 		tracker.BeginEnqueue()
+		//processor.WaitReady检查当前通道共识组件链是否已经准备好接收新消息
 		if err = processor.WaitReady(); err != nil {
 			logger.Warningf("[channel: %s] Rejecting broadcast of message from %s with SERVICE_UNAVAILABLE: rejected by Consenter: %s", chdr.ChannelId, addr, err)
 			return &ab.BroadcastResponse{Status: cb.Status_SERVICE_UNAVAILABLE, Info: err.Error()}
 		}
 
+		//processor.Order重新配置普通交易消息（包含configSeq最新配置序号），交给共识链对象请求排序出块
 		err = processor.Order(msg, configSeq)
 		if err != nil {
 			logger.Warningf("[channel: %s] Rejecting broadcast of normal message from %s with SERVICE_UNAVAILABLE: rejected by Order: %s", chdr.ChannelId, addr, err)
@@ -181,6 +184,7 @@ func (bh *Handler) ProcessMessage(msg *cb.Envelope, addr string) (resp *ab.Broad
 	} else { // isConfig
 		logger.Debugf("[channel: %s] Broadcast is processing config update message from %s", chdr.ChannelId, addr)
 
+		//processor.ProcessConfigUpdateMsg处理配置交易消息
 		config, configSeq, err := processor.ProcessConfigUpdateMsg(msg)
 		if err != nil {
 			logger.Warningf("[channel: %s] Rejecting broadcast of config message from %s because of error: %s", chdr.ChannelId, addr, err)
@@ -194,6 +198,7 @@ func (bh *Handler) ProcessMessage(msg *cb.Envelope, addr string) (resp *ab.Broad
 			return &ab.BroadcastResponse{Status: cb.Status_SERVICE_UNAVAILABLE, Info: err.Error()}
 		}
 
+		//processor.Configure构造新的配置交易消息，交给共识链对象请求处理
 		err = processor.Configure(config, configSeq)
 		if err != nil {
 			logger.Warningf("[channel: %s] Rejecting broadcast of config message from %s with SERVICE_UNAVAILABLE: rejected by Configure: %s", chdr.ChannelId, addr, err)

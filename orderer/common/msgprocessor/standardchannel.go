@@ -64,13 +64,18 @@ func NewStandardChannel(support StandardChannelSupport, filters *RuleSet, bccsp 
 // In maintenance mode, require the signature of /Channel/Orderer/Writer. This will filter out configuration
 // changes that are not related to consensus-type migration (e.g on /Channel/Application).
 func CreateStandardChannelFilters(filterSupport channelconfig.Resources, config localconfig.TopLevel) *RuleSet {
+	//共有四个过滤器
 	rules := []Rule{
+		//1.空检测
 		EmptyRejectRule,
+		//2.最大字节数检测
 		NewSizeFilter(filterSupport),
+		//3.SigFilter消息签名验证（Channel-Writes通道写权限）
 		NewSigFilter(policies.ChannelWriters, policies.ChannelOrdererWriters, filterSupport),
 	}
 
 	if !config.General.Authentication.NoExpirationChecks {
+		//4.拒绝过期的签名证书
 		expirationRule := NewExpirationRejectRule(filterSupport)
 		// In case of DoS, expiration is inserted before SigFilter, so it is evaluated first
 		rules = append(rules[:2], append([]Rule{expirationRule}, rules[2:]...)...)
@@ -109,7 +114,9 @@ func (s *StandardChannel) ProcessNormalMsg(env *cb.Envelope) (configSeq uint64, 
 		}
 	}
 
+	//调用s.support.Sequence获取通道配置序号configSeq，默认值为0，新建应用通道配置序号增1，该配置序号可以用来标识通道配置信息的版本
 	configSeq = s.support.Sequence()
+	//利用自带的通道信息过滤器过滤该消息，检查是否满足应用通道上的消息处理请求
 	err = s.filters.Apply(env)
 	return
 }

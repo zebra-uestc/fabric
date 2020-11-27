@@ -94,7 +94,7 @@ func main() {
 		fmt.Println("Error connecting:", err)
 		return
 	}
-
+	//调用NewAtomicBroadcastClient请求调用Broadcast服务接口，创建服务客户端（atomicBroadcastBroadcastClient）类型
 	client, err := ab.NewAtomicBroadcastClient(conn).Broadcast(context.TODO())
 	if err != nil {
 		fmt.Println("Error connecting:", err)

@@ -18,6 +18,7 @@ import (
 type IndexableAttr string
 
 // constants for indexable attributes
+//区块索引配置
 const (
 	IndexableAttrBlockNum        = IndexableAttr("BlockNum")
 	IndexableAttrBlockHash       = IndexableAttr("BlockHash")

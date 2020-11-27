@@ -68,9 +68,11 @@ func (flf *fileLedgerFactory) Close() {
 
 // New creates a new ledger factory
 func New(directory string, metricsProvider metrics.Provider) (blockledger.Factory, error) {
+	//NewProvider里建立了以chains命名的子目录
 	p, err := fsblkstorage.NewProvider(
 		fsblkstorage.NewConf(directory, -1),
 		&blkstorage.IndexConfig{
+			//区块数据文件名以blockfile_num命名
 			AttrsToIndex: []blkstorage.IndexableAttr{blkstorage.IndexableAttrBlockNum}},
 		metricsProvider,
 	)
@@ -78,7 +80,7 @@ func New(directory string, metricsProvider metrics.Provider) (blockledger.Factor
 		return nil, err
 	}
 	return &fileLedgerFactory{
-		blkstorageProvider: p,
-		ledgers:            make(map[string]blockledger.ReadWriter),
+		blkstorageProvider: p,                                       //区块数据存储对象提供者，用于生成指定通道上基于文件的区块数据存储对象，并指定初始化配置信息
+		ledgers:            make(map[string]blockledger.ReadWriter), //账本字典,记录通道ID与区块链账本的映射关系，管理所有通道的账本对象（FileLedger）
 	}, nil
 }

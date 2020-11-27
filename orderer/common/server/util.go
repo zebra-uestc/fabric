@@ -17,6 +17,7 @@ import (
 )
 
 func createLedgerFactory(conf *config.TopLevel, metricsProvider metrics.Provider) (blockledger.Factory, string, error) {
+	//指定账本存储路径
 	ld := conf.FileLedger.Location
 	var err error
 	if ld == "" {
@@ -26,6 +27,7 @@ func createLedgerFactory(conf *config.TopLevel, metricsProvider metrics.Provider
 	}
 
 	logger.Debug("Ledger dir:", ld)
+	//调用fileledger.New创建账本工厂对象lf
 	lf, err := fileledger.New(ld, metricsProvider)
 	if err != nil {
 		return nil, "", errors.WithMessage(err, "Error in opening ledger factory")

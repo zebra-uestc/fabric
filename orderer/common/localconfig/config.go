@@ -284,6 +284,7 @@ var Defaults = TopLevel{
 
 // Load parses the orderer YAML file and environment, producing
 // a struct suitable for config use, returning error on failure.
+//TopLevel包含orderer.yaml文件中的所有子配置
 func Load() (*TopLevel, error) {
 	return cache.load()
 }
@@ -303,12 +304,14 @@ func (c *configCache) load() (*TopLevel, error) {
 	var uconf TopLevel
 
 	config := viper.New()
+	//InitViper初始化Viper组件，查找配置文件路径
 	coreconfig.InitViper(config, "orderer")
 	config.SetEnvPrefix(Prefix)
 	config.AutomaticEnv()
 	replacer := strings.NewReplacer(".", "_")
 	config.SetEnvKeyReplacer(replacer)
 
+	//ReadInConfig从配置文件中加载文件，解析存储到Viper组件
 	if err := config.ReadInConfig(); err != nil {
 		return nil, fmt.Errorf("Error reading configuration: %s", err)
 	}
@@ -317,6 +320,7 @@ func (c *configCache) load() (*TopLevel, error) {
 	defer c.mutex.Unlock()
 	serializedConf, ok := c.cache[config.ConfigFileUsed()]
 	if !ok {
+		//EnhancedExactUnmarshal将Viper类型解析成TopLevel类型
 		err := viperutil.EnhancedExactUnmarshal(config, &uconf)
 		if err != nil {
 			return nil, fmt.Errorf("Error unmarshaling config into struct: %s", err)
@@ -337,6 +341,7 @@ func (c *configCache) load() (*TopLevel, error) {
 	if err != nil {
 		return nil, err
 	}
+	//completeInitialization如果没有设置，使用defaults补充默认属性值，退出时重置文件路径
 	uconf.completeInitialization(filepath.Dir(config.ConfigFileUsed()))
 
 	return &uconf, nil

@@ -31,6 +31,7 @@ func NewOrdererClientFromEnv() (*OrdererClient, error) {
 	if err != nil {
 		return nil, errors.WithMessage(err, "failed to create OrdererClient from config")
 	}
+	//根据orderer的配置创建ordererclient客户端
 	oClient := &OrdererClient{
 		CommonClient: CommonClient{
 			GRPCClient: gClient,
@@ -41,6 +42,7 @@ func NewOrdererClientFromEnv() (*OrdererClient, error) {
 
 // Broadcast returns a broadcast client for the AtomicBroadcast service
 func (oc *OrdererClient) Broadcast() (ab.AtomicBroadcast_BroadcastClient, error) {
+	//调用NewConnection创建gRPC连接对象conn
 	conn, err := oc.CommonClient.NewConnection(oc.Address, comm.ServerNameOverride(oc.sn))
 	if err != nil {
 		return nil, errors.WithMessagef(err, "orderer client failed to connect to %s", oc.Address)

@@ -82,17 +82,22 @@ func Main() {
 		logger.Error("failed to parse config: ", err)
 		os.Exit(1)
 	}
+	//初始化日志级别
 	initializeLogging()
 
 	prettyPrintStruct(conf)
 
 	cryptoProvider := factory.GetDefault()
-
+	//获取本地MSP签名者实体
 	signer, signErr := loadLocalMSP(conf).GetDefaultSigningIdentity()
 	if signErr != nil {
 		logger.Panicf("Failed to get local MSP identity: %s", signErr)
 	}
-
+	//newOperationsSystem函数可以创建一个“操作系统”
+	//该操作系统或许也可以叫做是一个“orderer节点运行健康监测器”
+	//在之后节点启动过程中会陆续通过metricsProvider创建一些Metrics
+	//这些Metrics会随着系统运行实时更新，并作为数据由该操作系统操作
+	//同时这些数据可以通过http协议，在浏览器中进行查看
 	opsSystem := newOperationsSystem(conf.Operations, conf.Metrics)
 	if err = opsSystem.Start(); err != nil {
 		logger.Panicf("failed to initialize operations subsystem: %s", err)
@@ -109,7 +114,7 @@ func Main() {
 		ordererRootCAsByChain: make(map[string][][]byte),
 		clientRootCAs:         serverConfig.SecOpts.ClientRootCAs,
 	}
-
+	//创建账本工厂LedgerFactory
 	lf, _, err := createLedgerFactory(conf, metricsProvider)
 	if err != nil {
 		logger.Panicf("Failed to create ledger factory: %v", err)
@@ -124,6 +129,8 @@ func Main() {
 	var clusterDialer *cluster.PredicateDialer
 	var clusterType, reuseGrpcListener bool
 	var serversToUpdate []*comm.GRPCServer
+
+	//判断conf.General.BootstrapMethod配置项目是否为file，表示通过文件存储区块
 	if conf.General.BootstrapMethod == "file" {
 		bootstrapBlock := extractBootstrapBlock(conf)
 		if err := ValidateBootstrapBlock(bootstrapBlock, cryptoProvider); err != nil {
@@ -157,6 +164,7 @@ func Main() {
 		}
 		// Are we bootstrapping?
 		if len(lf.ChannelIDs()) == 0 {
+			//初始化系统通道
 			initializeBootstrapChannel(clusterBootBlock, lf)
 		} else {
 			logger.Info("Not bootstrapping because of existing channels")
@@ -196,7 +204,7 @@ func Main() {
 			)
 		}
 	}
-
+	//初始化多通道注册管理器
 	manager := initializeMultichannelRegistrar(
 		clusterBootBlock,
 		r,
@@ -213,6 +221,8 @@ func Main() {
 	)
 
 	mutualTLS := serverConfig.SecOpts.UseTLS && serverConfig.SecOpts.RequireClientCert
+
+	//创建Orderer排序服务器
 	server := NewServer(
 		manager,
 		metricsProvider,
@@ -364,6 +374,7 @@ func createReplicator(
 }
 
 func initializeLogging() {
+	//FABRIC_LOGGING_SPEC环境变量在docker-compose.yaml启动orderer容器中被设置成INFO级别。
 	loggingSpec := os.Getenv("FABRIC_LOGGING_SPEC")
 	loggingFormat := os.Getenv("FABRIC_LOGGING_FORMAT")
 	flogging.Init(flogging.Config{
@@ -655,9 +666,11 @@ func initializeGrpcServer(conf *localconfig.TopLevel, serverConfig comm.ServerCo
 	return grpcServer
 }
 
+//初始化本地MSP组件
 func loadLocalMSP(conf *localconfig.TopLevel) msp.MSP {
 	// MUST call GetLocalMspConfig first, so that default BCCSP is properly
 	// initialized prior to LoadByType.
+	//GetLocalMspConfig根据TopLevel中General配置生成mspConfig
 	mspConfig, err := msp.GetLocalMspConfig(conf.General.LocalMSPDir, conf.General.BCCSP, conf.General.LocalMSPID)
 	if err != nil {
 		logger.Panicf("Failed to get local msp config: %v", err)
@@ -668,12 +681,12 @@ func loadLocalMSP(conf *localconfig.TopLevel) msp.MSP {
 	if !found {
 		logger.Panicf("MSP option for type %s is not found", typ)
 	}
-
+	//msp.New调用newBccspMsp创建bccspmsp类型对象，基于BCCSP组件提供密码套件服务
 	localmsp, err := msp.New(opts, factory.GetDefault())
 	if err != nil {
 		logger.Panicf("Failed to load local MSP: %v", err)
 	}
-
+	//localmsp.Setup将mspConfig配置设置到bccspmsp
 	if err = localmsp.Setup(mspConfig); err != nil {
 		logger.Panicf("Failed to setup local msp with config: %v", err)
 	}
@@ -688,6 +701,12 @@ type healthChecker interface {
 	RegisterChecker(component string, checker healthz.HealthChecker) error
 }
 
+/*
+initializeMultichannelRegistrar函数用于创建一个管理器manager,可以被用来调配各个子模块,
+其内部包含所有共识机制的Consenter，并且包装了chain集合（chainsupport）,签名工具（signer）,账本工厂,系统链条等等.
+manager可以为其他变量提供这些模块的接入点和控制.
+并且在manager初始化完成之后，,相应的对内部一些模块进行实例化（初始化）
+*/
 func initializeMultichannelRegistrar(
 	bootstrapBlock *cb.Block,
 	ri *replicationInitiator,

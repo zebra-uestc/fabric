@@ -24,6 +24,7 @@ type BroadcastGRPCClient struct {
 
 // GetBroadcastClient creates a simple instance of the BroadcastClient interface
 func GetBroadcastClient() (BroadcastClient, error) {
+	//根据orderer的配置创建ordererclient客户端
 	oc, err := NewOrdererClientFromEnv()
 	if err != nil {
 		return nil, err

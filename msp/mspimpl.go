@@ -291,6 +291,7 @@ func (msp *bccspmsp) GetTLSIntermediateCerts() [][]byte {
 
 // GetDefaultSigningIdentity returns the
 // default signing identity for this MSP (if any)
+//获取本地MSP签名者实体
 func (msp *bccspmsp) GetDefaultSigningIdentity() (SigningIdentity, error) {
 	mspLogger.Debugf("Obtaining default signing identity")
 
