@@ -50,7 +50,9 @@ type node struct {
 	raft.Node
 }
 
+// etcdraft/node作为chain端与raft/node端的中间层
 func (n *node) start(fresh, join bool) {
+    // 首先根据传入的metadata配置信息，获取启动raft节点的ID信息
 	raftPeers := RaftPeers(n.metadata.ConsenterIds)
 	n.logger.Debugf("Starting raft node: #peers: %v", len(raftPeers))
 
@@ -70,6 +72,7 @@ func (n *node) start(fresh, join bool) {
 				campaign = true
 			}
 		}
+		// 调用raft.StartNode启动节点
 		n.Node = raft.StartNode(n.config, raftPeers)
 	} else {
 		n.logger.Info("Restarting raft node")
@@ -78,6 +81,7 @@ func (n *node) start(fresh, join bool) {
 
 	n.subscriberC = make(chan chan uint64)
 
+    // 然后启动go线程循环处理消息
 	go n.run(campaign)
 }
 
@@ -131,8 +135,11 @@ func (n *node) run(campaign bool) {
 			n.Tick()
 			n.tracker.Check(&status)
 
+        // 接收node传来的n.Ready消息
 		case rd := <-n.Ready():
 			startStoring := n.clock.Now()
+			// 只要收到Ready，先把Entries，HardState，Snapshot存储在本地
+			// Raft之后会保证哪些是需要应用到状态机的。因为Raft库没有存储支持，所以需要应用进行接管。
 			if err := n.storage.Store(rd.Entries, rd.HardState, rd.Snapshot); err != nil {
 				n.logger.Panicf("Failed to persist etcd/raft data: %s", err)
 			}
@@ -141,7 +148,7 @@ func (n *node) run(campaign bool) {
 			if duration > halfElectionTimeout {
 				n.logger.Warningf("WAL sync took %v seconds and the network is configured to start elections after %v seconds. Your disk is too slow and may cause loss of quorum and trigger leadership election.", duration, electionTimeout)
 			}
-
+			// 如果含有snapshot快照，通知chain端的snapC通道
 			if !raft.IsEmptySnap(rd.Snapshot) {
 				n.chain.snapC <- &rd.Snapshot
 			}
@@ -158,6 +165,7 @@ func (n *node) run(campaign bool) {
 			}
 
 			// skip empty apply
+			// 如果有CommittedEntries或SoftState变更，通知chain端的applyC通道
 			if len(rd.CommittedEntries) != 0 || rd.SoftState != nil {
 				n.chain.applyC <- apply{rd.CommittedEntries, rd.SoftState}
 			}
@@ -170,11 +178,12 @@ func (n *node) run(campaign bool) {
 					close(elected)
 				}
 			}
-
+			// 全部处理完，Advance，通知Raft处理完毕，可以发下一个Ready了
 			n.Advance()
 
 			// TODO(jay_guo) leader can write to disk in parallel with replicating
 			// to the followers and them writing to their disks. Check 10.2.1 in thesis
+			// n.send调用rpc.SendConsensus进行node间交互信息（raft库没有网络支持，只能交给上层处理）
 			n.send(rd.Messages)
 
 		case notifyLeaderChangeC = <-n.subscriberC:

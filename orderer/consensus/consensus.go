@@ -23,6 +23,10 @@ type Consenter interface {
 	// The second argument to HandleChain is a pointer to the metadata stored on the `ORDERER` slot of
 	// the last block committed to the ledger of this Chain. For a new chain, or one which is migrated,
 	// this metadata will be nil (or contain a zero-length Value), as there is no prior metadata to report.
+	// 共识机制初始化的入口,在Orderer启动后初始化链支撑对象时被调用
+	// 第一个参数是当前通道用于账本管理相关的支撑实例，提供给当前共识组件用于资源管理，
+	// 赋予共识部分操作链的能力，例如创建区块和保存区块
+	// 第二个参数是与共识组件相关的配置信息，比如raft的节点列表、当前节点ID等。初始创建通道时，参数为 nil。
 	HandleChain(support ConsenterSupport, metadata *cb.Metadata) (Chain, error)
 }
 
@@ -43,11 +47,13 @@ type MetadataValidator interface {
 // and ultimately write the ledger also supplied via HandleChain.  This design allows for two primary flows
 // 1. Messages are ordered into a stream, the stream is cut into blocks, the blocks are committed (solo, kafka)
 // 2. Messages are cut into blocks, the blocks are ordered, then the blocks are committed (sbft)
+// 定义了 Orderer 需要对接收到的消息所做的处理
 type Chain interface {
 	// Order accepts a message which has been processed at a given configSeq.
 	// If the configSeq advances, it is the responsibility of the consenter
 	// to revalidate and potentially discard the message
 	// The consenter may return an error, indicating the message was not accepted
+	// Order() 负责对普通交易消息进行处理排序
 	Order(env *cb.Envelope, configSeq uint64) error
 
 	// Configure accepts a message which reconfigures the channel and will
@@ -56,26 +62,31 @@ type Chain interface {
 	// it is the responsibility of the consenter to recompute the resulting config,
 	// discarding the message if the reconfiguration is no longer valid.
 	// The consenter may return an error, indicating the message was not accepted
+	// Configure() 负责对配置交易消息进行处理和排序
 	Configure(config *cb.Envelope, configSeq uint64) error
-
+    // Peer节点通过Broadcast发送给Oderer排序的message都要经过这两个接口之一转交给共识机制去处理。
 	// WaitReady blocks waiting for consenter to be ready for accepting new messages.
 	// This is useful when consenter needs to temporarily block ingress messages so
 	// that in-flight messages can be consumed. It could return error if consenter is
 	// in erroneous states. If this blocking behavior is not desired, consenter could
 	// simply return nil.
+	// 等待consenter准备好，发送新的消息
 	WaitReady() error
 
 	// Errored returns a channel which will close when an error has occurred.
 	// This is especially useful for the Deliver client, who must terminate waiting
 	// clients when the consenter is not up to date.
+	// 返回因error关闭的chanel
 	Errored() <-chan struct{}
 
 	// Start should allocate whatever resources are needed for staying up to date with the chain.
 	// Typically, this involves creating a thread which reads from the ordering source, passes those
 	// messages to a block cutter, and writes the resulting blocks to the ledger.
+	// Start() 则负责启动此 Chain 服务，包括chain启动、raft库节点的启动。
 	Start()
 
 	// Halt frees the resources which were allocated for this Chain.
+	// 释放为该链分配的资源
 	Halt()
 }
 
