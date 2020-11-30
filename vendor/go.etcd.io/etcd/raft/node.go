@@ -446,6 +446,8 @@ func (n *node) Tick() {
 
 func (n *node) Campaign(ctx context.Context) error { return n.step(ctx, pb.Message{Type: pb.MsgHup}) }
 
+//将日志广播出去，要所有节点都尽量保存起来，但还没有提交
+//等到leader收到半数以上的节点都响应说已经保存完了，leader这时就可以提交了，下一次Ready的时候就会带上committedindex。
 func (n *node) Propose(ctx context.Context, data []byte) error {
 	return n.stepWait(ctx, pb.Message{Type: pb.MsgProp, Entries: []pb.Entry{{Data: data}}})
 }

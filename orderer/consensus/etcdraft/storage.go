@@ -296,6 +296,8 @@ func (rs *RaftStorage) saveSnap(snap raftpb.Snapshot) error {
 }
 
 // TakeSnapshot takes a snapshot at index i from MemoryStorage, and persists it to wal and disk.
+// 生成snapshot，包括任期，最后一次的日志下标以及block。保存到本地snap
+// 调用rs.gc()，如果超过MaxSnapshotFiles，需要清理wal文件和过期的快照文件
 func (rs *RaftStorage) TakeSnapshot(i uint64, cs raftpb.ConfState, data []byte) error {
 	rs.lg.Debugf("Creating snapshot at index %d from MemoryStorage", i)
 	snap, err := rs.ram.CreateSnapshot(i, &cs, data)

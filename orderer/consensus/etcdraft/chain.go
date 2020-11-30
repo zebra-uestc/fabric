@@ -140,7 +140,10 @@ type gc struct {
 // Chain implements consensus.Chain interface.
 type Chain struct {
 	configurator Configurator
-
+	
+	// 外部节点进行通信的对象
+	// RPC 是一个接口，包含两个方法
+	// SendConsensus 和 SendSubmit，用于节点间 raft 信息的通讯，后者用于转发交易请求给 leader 节点
 	rpc RPC
 
 	raftID    uint64
@@ -149,12 +152,15 @@ type Chain struct {
 	lastKnownLeader uint64
 	ActiveNodes     atomic.Value
 
+    // 接收 Orderer 应用端提交的共识请求消息的通道
 	submitC  chan *submit
+	// 接收 raft 节点间应用消息的通道
 	applyC   chan apply
 	observeC chan<- raft.SoftState // Notifies external observer on leader change (passed in optionally as an argument for tests)
 	haltC    chan struct{}         // Signals to goroutines that the chain is halting
 	doneC    chan struct{}         // Closes when the chain halts
 	startC   chan struct{}         // Closes when the node is started
+	// 接收 raft 节点快照数据的通道
 	snapC    chan *raftpb.Snapshot // Signal to catch up with snapshot
 	gcC      chan *gc              // Signal to take snapshot
 
@@ -169,6 +175,7 @@ type Chain struct {
 
 	clock clock.Clock // Tests can inject a fake clock
 
+    // orderer 上层提供的 ConsensusSupport 实例
 	support consensus.ConsenterSupport
 
 	lastBlock    *common.Block
@@ -185,6 +192,7 @@ type Chain struct {
 	fresh bool // indicate if this is a fresh raft node
 
 	// this is exported so that test can use `Node.Status()` to get raft node status.
+	// 封装了底层 raft 库的节点实例
 	Node *node
 	opts Options
 
@@ -336,6 +344,7 @@ func NewChain(
 }
 
 // Start instructs the orderer to begin serving the chain and keep it current.
+// 启动入口：ChainSupport的start函数，继续调用共识组件链的Start函数启动共识机制
 func (c *Chain) Start() {
 	c.logger.Infof("Starting Raft node")
 
@@ -482,8 +491,8 @@ func (c *Chain) Consensus(req *orderer.ConsensusRequest, sender uint64) error {
 // - the local run goroutine if this is leader
 // - the actual leader via the transport mechanism
 // The call fails if there's no leader elected yet.
-//Submit首先将请求消息封装为 submit 结构通过当前 Chain实例的通道 c.submitC 传递给后端处理
-//同时获取当前时刻 raft 集群的 leader 信息。
+// Submit首先将请求消息封装为 submit 结构通过当前 Chain实例的通道 c.submitC 传递给后端处理
+// 同时获取当前时刻 raft 集群的 leader 信息。
 func (c *Chain) Submit(req *orderer.SubmitRequest, sender uint64) error {
 	if err := c.isRunning(); err != nil {
 		c.Metrics.ProposalFailures.Add(1)
@@ -558,7 +567,7 @@ func (c *Chain) run() {
 	var propC chan<- *common.Block
 	var cancelProp context.CancelFunc
 	cancelProp = func() {} // no-op as initial value
-
+    // 角色切换为leader
 	becomeLeader := func() (chan<- *common.Block, context.CancelFunc) {
 		c.Metrics.IsLeader.Set(1)
 
@@ -590,6 +599,7 @@ func (c *Chain) run() {
 				select {
 				case b := <-ch:
 					data := protoutil.MarshalOrPanic(b)
+					// 调用c.Node.Propose将数据传递给底层raft状态机。
 					if err := c.Node.Propose(ctx, data); err != nil {
 						c.logger.Errorf("Failed to propose block [%d] to raft and discard %d blocks in queue: %s", b.Header.Number, len(ch), err)
 						return
@@ -605,7 +615,8 @@ func (c *Chain) run() {
 
 		return ch, cancel
 	}
-
+	
+	// 角色切换为follow
 	becomeFollower := func() {
 		cancelProp()
 		c.blockInflight = 0
@@ -618,6 +629,7 @@ func (c *Chain) run() {
 
 	for {
 		select {
+		// submitC通道消息，客户端Oderer和Configure接口发送过来的message排序请求交给这里处理
 		case s := <-submitC:
 			if s == nil {
 				// polled by `WaitReady`
@@ -634,7 +646,7 @@ func (c *Chain) run() {
 				continue
 			}
 
-			batches, pending, err := c.ordered(s.req)
+			batches, pending, err := c.ordered(s.req) // c.ordered排序
 			if err != nil {
 				c.logger.Errorf("Failed to order message: %s", err)
 				continue
@@ -645,7 +657,7 @@ func (c *Chain) run() {
 				stopTimer()
 			}
 
-			c.propose(propC, bc, batches...)
+			c.propose(propC, bc, batches...) // c.propose提交区块
 
 			if c.configInflight {
 				c.logger.Info("Received config transaction, pause accepting transaction till it is committed")
@@ -655,10 +667,11 @@ func (c *Chain) run() {
 					c.blockInflight, c.opts.MaxInflightBlocks)
 				submitC = nil
 			}
-
+        // applyC通道消息，由node端发送过来
 		case app := <-c.applyC:
 			if app.soft != nil {
 				newLeader := atomic.LoadUint64(&app.soft.Lead) // etcdraft requires atomic access
+				// 如果接收到SoftState变更的消息，说明角色要发生变化了，调用becomeLeader或者becomefollower更换角色
 				if newLeader != soft.Lead {
 					c.logger.Infof("Raft leader changed: %d -> %d", soft.Lead, newLeader)
 					c.Metrics.LeaderChanges.Add(1)
@@ -707,8 +720,8 @@ func (c *Chain) run() {
 				default:
 				}
 			}
-
-			c.apply(app.entries)
+            // 如果接收到CommittedEntries不为空的消息，调用c.apply处理
+			c.apply(app.entries) 
 
 			if c.justElected {
 				msgInflight := c.Node.lastIndex() > c.appliedIndex
@@ -737,7 +750,7 @@ func (c *Chain) run() {
 				submitC = c.submitC
 			}
 
-		case <-timer.C():
+		case <-timer.C():  // timer.C通道信息，orderer出块配置的计时，达到规定时间强制处块
 			ticking = false
 
 			batch := c.support.BlockCutter().Cut()
@@ -749,24 +762,25 @@ func (c *Chain) run() {
 			c.logger.Debugf("Batch timer expired, creating block")
 			c.propose(propC, bc, batch) // we are certain this is normal block, no need to block
 
-		case sn := <-c.snapC:
+		case sn := <-c.snapC: // snapC通道消息，由node端发送过来，处理快照
 			if sn.Metadata.Index != 0 {
+			// 如果状态机的index比快照还要新，就不用更新了
 				if sn.Metadata.Index <= c.appliedIndex {
 					c.logger.Debugf("Skip snapshot taken at index %d, because it is behind current applied index %d", sn.Metadata.Index, c.appliedIndex)
 					break
 				}
-
+                // 将快照的数据给chain做更新
 				c.confState = sn.Metadata.ConfState
 				c.appliedIndex = sn.Metadata.Index
 			} else {
 				c.logger.Infof("Received artificial snapshot to trigger catchup")
 			}
-
+            // 基本上收到快照的都是follower或新来的learner，leader保持一致，调用catchUp拉取区块
 			if err := c.catchUp(sn); err != nil {
 				c.logger.Panicf("Failed to recover from snapshot taken at Term %d and Index %d: %s",
 					sn.Metadata.Term, sn.Metadata.Index, err)
 			}
-
+        // doneC通道消息，异常处理，关闭chain
 		case <-c.doneC:
 			stopTimer()
 			cancelProp()
@@ -818,9 +832,10 @@ func (c *Chain) writeBlock(block *common.Block, index uint64) {
 //   -- pending bool; if there are envelopes pending to be ordered,
 //   -- err error; the error encountered, if any.
 // It takes care of config messages as well as the revalidation of messages if the config sequence has advanced.
+// 应用端发送给orderer的broadcast请求报文，都会被转发给raft集群中的leader节点进行处理
 func (c *Chain) ordered(msg *orderer.SubmitRequest) (batches [][]*common.Envelope, pending bool, err error) {
 	seq := c.support.Sequence()
-
+	// 如果是配置消息，直接调用 BlockCutter.Cut() 对报文进行切块，因为配置信息都是单独成块
 	if c.isConfig(msg.Payload) {
 		// ConfigMsg
 		if msg.LastValidationSeq < seq {
@@ -841,6 +856,7 @@ func (c *Chain) ordered(msg *orderer.SubmitRequest) (batches [][]*common.Envelop
 		return batches, false, nil
 	}
 	// it is a normal message
+	// 如果是普通消息，调用BlockCutter.Ordered()进入缓存排序，并根据出块规则决定是否出块
 	if msg.LastValidationSeq < seq {
 		c.logger.Warnf("Normal message was validated against %d, although current config seq has advanced (%d)", msg.LastValidationSeq, seq)
 		if _, err := c.support.ProcessNormalMsg(msg.Payload); err != nil {
@@ -855,16 +871,19 @@ func (c *Chain) ordered(msg *orderer.SubmitRequest) (batches [][]*common.Envelop
 
 func (c *Chain) propose(ch chan<- *common.Block, bc *blockCreator, batches ...[]*common.Envelope) {
 	for _, batch := range batches {
+	// propose会根据batches数据包调用createNextBlock打包出block
 		b := bc.createNextBlock(batch)
 		c.logger.Infof("Created block [%d], there are %d blocks in flight", b.Header.Number, c.blockInflight)
 
 		select {
+		// 将block传递给c.ch通道（becomeLeader时会启动一个线程处理该消息，只有leader具有propose的权限）
 		case ch <- b:
 		default:
 			c.logger.Panic("Programming error: limit of in-flight blocks does not properly take effect or block is proposed by follower")
 		}
 
 		// if it is config block, then we should wait for the commit of the block
+		// 如果是配置信息，还需要标记处当前正在进行配置更新的状态
 		if protoutil.IsConfigBlock(b) {
 			c.configInflight = true
 		}
@@ -885,7 +904,7 @@ func (c *Chain) catchUp(snap *raftpb.Snapshot) error {
 		c.logger.Warnf("Snapshot is at block [%d], local block number is %d, no sync needed", b.Header.Number, c.lastBlock.Header.Number)
 		return nil
 	}
-
+	// 用Puller拉取区块，对接的Orderer的deliver服务拉取block。
 	puller, err := c.createPuller()
 	if err != nil {
 		return errors.Errorf("failed to create block puller: %s", err)
@@ -895,7 +914,7 @@ func (c *Chain) catchUp(snap *raftpb.Snapshot) error {
 	next := c.lastBlock.Header.Number + 1
 
 	c.logger.Infof("Catching up with snapshot taken at block [%d], starting from block [%d]", b.Header.Number, next)
-
+    // 拉取该区间的block的同时
 	for next <= b.Header.Number {
 		block := puller.PullBlock(next)
 		if block == nil {
@@ -919,9 +938,10 @@ func (c *Chain) catchUp(snap *raftpb.Snapshot) error {
 				}
 			}
 		} else {
+		// 写入本地账本
 			c.support.WriteBlock(block, nil)
 		}
-
+		// 更新lastblock标记位
 		c.lastBlock = block
 		next++
 	}
@@ -1070,7 +1090,8 @@ func (c *Chain) apply(ents []raftpb.Entry) {
 
 	return
 }
-
+// c.apply发送的gc信号交给c.gcC通道处理
+// 依次调用c.Node.takeSnapshot、n.storage.TakeSnapshot创建快照
 func (c *Chain) gc() {
 	for {
 		select {
