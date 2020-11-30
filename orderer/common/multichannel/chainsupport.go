@@ -21,6 +21,8 @@ import (
 )
 
 // ChainSupport holds the resources for a particular channel.
+// ChainSupport实现了orderer/consensus.sonsensus.go的ConsenterSupport接口
+// ChainSupport代表一个通道相关的资源，包括BlockWriter、consensus.Chain等结构
 type ChainSupport struct {
 	*ledgerResources
 	msgprocessor.Processor
@@ -95,6 +97,7 @@ func newChainSupport(
 
 // Block returns a block with the following number,
 // or nil if such a block doesn't exist.
+//添加指定序号的区块
 func (cs *ChainSupport) Block(number uint64) *cb.Block {
 	if cs.Height() <= number {
 		return nil
@@ -102,11 +105,13 @@ func (cs *ChainSupport) Block(number uint64) *cb.Block {
 	return blockledger.GetBlock(cs.Reader(), number)
 }
 
+//返回对本地链结构的读句柄
 func (cs *ChainSupport) Reader() blockledger.Reader {
 	return cs
 }
 
 // Signer returns the SignerSerializer for this channel.
+//返回签名结构
 func (cs *ChainSupport) Signer() identity.SignerSerializer {
 	return cs
 }
@@ -116,17 +121,20 @@ func (cs *ChainSupport) start() {
 }
 
 // BlockCutter returns the blockcutter.Receiver instance for this channel.
+//返回区块切割组件
 func (cs *ChainSupport) BlockCutter() blockcutter.Receiver {
 	return cs.cutter
 }
 
 // Validate passes through to the underlying configtx.Validator
+//对配置更新交易进行验证
 func (cs *ChainSupport) Validate(configEnv *cb.ConfigEnvelope) error {
 	return cs.ConfigtxValidator().Validate(configEnv)
 }
 
 // ProposeConfigUpdate validates a config update using the underlying configtx.Validator
 // and the consensus.MetadataValidator.
+//校验并接受配置更新交易，生成新的配置Envelope结构
 func (cs *ChainSupport) ProposeConfigUpdate(configtx *cb.Envelope) (*cb.ConfigEnvelope, error) {
 	env, err := cs.ConfigtxValidator().ProposeConfigUpdate(configtx)
 	if err != nil {
@@ -166,11 +174,13 @@ func (cs *ChainSupport) ProposeConfigUpdate(configtx *cb.Envelope) (*cb.ConfigEn
 }
 
 // ChannelID passes through to the underlying configtx.Validator
+//返回本通道的Id
 func (cs *ChainSupport) ChannelID() string {
 	return cs.ConfigtxValidator().ChannelID()
 }
 
 // ConfigProto passes through to the underlying configtx.Validator
+//返回本通道的配置结构
 func (cs *ChainSupport) ConfigProto() *cb.Config {
 	return cs.ConfigtxValidator().ConfigProto()
 }
@@ -182,6 +192,7 @@ func (cs *ChainSupport) Sequence() uint64 {
 
 // Append appends a new block to the ledger in its raw form,
 // unlike WriteBlock that also mutates its metadata.
+//添加区块到对应链结构
 func (cs *ChainSupport) Append(block *cb.Block) error {
 	return cs.ledgerResources.ReadWriter.Append(block)
 }
@@ -192,6 +203,7 @@ func (cs *ChainSupport) Append(block *cb.Block) error {
 // based on the given configuration in the ConfigEnvelope.
 // If the config envelope passed is nil, then the validation rules used
 // are the ones that were applied at commit of previous blocks.
+//校验区块签名
 func (cs *ChainSupport) VerifyBlockSignature(sd []*protoutil.SignedData, envelope *cb.ConfigEnvelope) error {
 	policyMgr := cs.PolicyManager()
 	// If the envelope passed isn't nil, we should use a different policy manager.

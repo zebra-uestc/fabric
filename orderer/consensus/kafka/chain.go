@@ -287,9 +287,6 @@ func (chain *chainImpl) HealthCheck(ctx context.Context) error {
 }
 
 // Called by Start().
-// 创建到 Kafka 集群的 Producer 结构并发送 CONNECT 消息；
-// 为对应的 topic 创建 Consumer 结构，并配置从指定分区读取消息的 PartitionConsumer 结构；
-// 对链对应的 Kafka 分区中消息的进行循环处理。这部分更详细内容可以参考 Orderer 节点对排序后消息的处理过程。
 func startThread(chain *chainImpl) {
 	var err error
 
@@ -301,7 +298,6 @@ func startThread(chain *chainImpl) {
 	}
 
 	// Set up the producer
-	// 创建 Producer 结构
 	chain.producer, err = setupProducerForChannel(chain.consenter.retryOptions(), chain.haltChan, chain.SharedConfig().KafkaBrokers(), chain.consenter.brokerConfig(), chain.channel)
 	if err != nil {
 		logger.Panicf("[channel: %s] Cannot set up producer = %s", chain.channel.topic(), err)
@@ -309,14 +305,12 @@ func startThread(chain *chainImpl) {
 	logger.Infof("[channel: %s] Producer set up successfully", chain.ChannelID())
 
 	// Have the producer post the CONNECT message
-	// 发送 CONNECT 消息给 Kafka，如果失败，则退出
 	if err = sendConnectMessage(chain.consenter.retryOptions(), chain.haltChan, chain.producer, chain.channel); err != nil {
 		logger.Panicf("[channel: %s] Cannot post CONNECT message = %s", chain.channel.topic(), err)
 	}
 	logger.Infof("[channel: %s] CONNECT message posted successfully", chain.channel.topic())
 
 	// Set up the parent consumer
-	// 创建处理对应 Kafka topic 的 Consumer 结构
 	chain.parentConsumer, err = setupParentConsumerForChannel(chain.consenter.retryOptions(), chain.haltChan, chain.SharedConfig().KafkaBrokers(), chain.consenter.brokerConfig(), chain.channel)
 	if err != nil {
 		logger.Panicf("[channel: %s] Cannot set up parent consumer = %s", chain.channel.topic(), err)
@@ -324,7 +318,6 @@ func startThread(chain *chainImpl) {
 	logger.Infof("[channel: %s] Parent consumer set up successfully", chain.channel.topic())
 
 	// Set up the channel consumer
-	// 配置从指定 partition 读取消息的 PartitionConsumer 结构
 	chain.channelConsumer, err = setupChannelConsumerForChannel(chain.consenter.retryOptions(), chain.haltChan, chain.parentConsumer, chain.channel, chain.lastOffsetPersisted+1)
 	if err != nil {
 		logger.Panicf("[channel: %s] Cannot set up channel consumer = %s", chain.channel.topic(), err)
@@ -343,22 +336,12 @@ func startThread(chain *chainImpl) {
 
 	logger.Infof("[channel: %s] Start phase completed successfully", chain.channel.topic())
 
-	// 从该链对应的 Kafka 分区不断读取消息，并进行处理过程
 	chain.processMessagesToBlocks() // Keep up to date with the channel
 }
-
-//https://yeasy.gitbook.io/hyperledger_code_fabric/process/orderer_consume_msg#zhu-yao-guo-cheng
-
-// 其中，除了出错和超时外，最核心过程为处理从 Kakfa 收到的正常消息，主要包括三种类型：
-// Connect 消息：Producer 启动后发出，刷新与 Kafka 的连接。目前为忽略该消息。
-// Fabric 交易消息（即 Regular 消息）：根据消息内容进行进一步处理，包括普通交易消息和配置消息。
-// TimeToCut 消息：收到该消息意味着当前可以进行分块。
 
 // processMessagesToBlocks drains the Kafka consumer for the given channel, and
 // takes care of converting the stream of ordered messages into blocks for the
 // channel's ledger.
-//持续获取 Kafka 对应分区中的消息并进行处理。
-//该方法内是一个 for 循环，不断从对应 Kafka 分区中提取（Consume）消息，满足分块条件（超时或消息的个数或大小满足预设条件）时，还会发送 TimeToCut（TTC） 消息到 Kakfa 对应分区中。
 func (chain *chainImpl) processMessagesToBlocks() ([]uint64, error) {
 	counts := make([]uint64, 11) // For metrics and tests
 	msg := new(ab.KafkaMessage)
@@ -383,11 +366,11 @@ func (chain *chainImpl) processMessagesToBlocks() ([]uint64, error) {
 
 	for {
 		select {
-		case <-chain.haltChan:// 链故障了，退出
+		case <-chain.haltChan:
 			logger.Warningf("[channel: %s] Consenter for channel exiting", chain.ChannelID())
 			counts[indexExitChanPass]++
 			return counts, nil
-		case kafkaErr := <-chain.channelConsumer.Errors()://获取 Kakfa 消息发生错误
+		case kafkaErr := <-chain.channelConsumer.Errors():
 			logger.Errorf("[channel: %s] Error during consumption: %s", chain.ChannelID(), kafkaErr)
 			counts[indexRecvError]++
 			select {

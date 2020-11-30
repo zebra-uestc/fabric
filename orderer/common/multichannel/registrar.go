@@ -93,18 +93,19 @@ type ledgerResources struct {
 }
 
 // Registrar serves as a point of access and control for the individual channel resources.
+//Registrar结构管理所有的通道和本地账本，为每个通道都分配一个ChainSupport结构
 type Registrar struct {
 	config localconfig.TopLevel
 	lock   sync.RWMutex
 	chains map[string]*ChainSupport
 
-	consenters         map[string]consensus.Consenter
+	consenters         map[string]consensus.Consenter //管理所有的应用通道consenters
 	ledgerFactory      blockledger.Factory
-	signer             identity.SignerSerializer
-	blockcutterMetrics *blockcutter.Metrics
+	signer             identity.SignerSerializer //负责新建和获取本地账本签名
+	blockcutterMetrics *blockcutter.Metrics      //签名结构
 	systemChannelID    string
-	systemChannel      *ChainSupport
-	templator          msgprocessor.ChannelConfigTemplator
+	systemChannel      *ChainSupport                       //系统通道
+	templator          msgprocessor.ChannelConfigTemplator //管理系统通道
 	callbacks          []channelconfig.BundleActor
 	bccsp              bccsp.BCCSP
 }
@@ -151,6 +152,7 @@ func NewRegistrar(
 	return r
 }
 
+//根据本地文件初始化所有的链管理结构
 func (r *Registrar) Initialize(consenters map[string]consensus.Consenter) {
 	r.consenters = consenters
 	existingChannels := r.ledgerFactory.ChannelIDs()
@@ -228,6 +230,7 @@ func (r *Registrar) Initialize(consenters map[string]consensus.Consenter) {
 }
 
 // SystemChannelID returns the ChannelID for the system channel.
+//返回系统通道的ID
 func (r *Registrar) SystemChannelID() string {
 	return r.systemChannelID
 }
@@ -235,6 +238,7 @@ func (r *Registrar) SystemChannelID() string {
 // BroadcastChannelSupport returns the message channel header, whether the message is a config update
 // and the channel resources for a message or an error if the message is not a message which can
 // be processed directly (like CONFIG and ORDERER_TRANSACTION messages)
+//返回消息的通道头，检查是否是配置交易
 func (r *Registrar) BroadcastChannelSupport(msg *cb.Envelope) (*cb.ChannelHeader, bool, *ChainSupport, error) {
 	chdr, err := protoutil.ChannelHeader(msg)
 	if err != nil {
@@ -263,6 +267,7 @@ func (r *Registrar) BroadcastChannelSupport(msg *cb.Envelope) (*cb.ChannelHeader
 }
 
 // GetChain retrieves the chain support for a chain if it exists.
+//获取指定链
 func (r *Registrar) GetChain(chainID string) *ChainSupport {
 	r.lock.RLock()
 	defer r.lock.RUnlock()
@@ -312,6 +317,7 @@ func (r *Registrar) newLedgerResources(configTx *cb.Envelope) *ledgerResources {
 }
 
 // CreateChain makes the Registrar create a chain with the given name.
+//新建一个通道和对应的账本
 func (r *Registrar) CreateChain(chainName string) {
 	lf, err := r.ledgerFactory.GetOrCreate(chainName)
 	if err != nil {
@@ -354,6 +360,7 @@ func (r *Registrar) newChain(configtx *cb.Envelope) {
 }
 
 // ChannelsCount returns the count of the current total number of channels.
+//返回当前的通道数
 func (r *Registrar) ChannelsCount() int {
 	r.lock.RLock()
 	defer r.lock.RUnlock()
@@ -362,11 +369,13 @@ func (r *Registrar) ChannelsCount() int {
 }
 
 // NewChannelConfig produces a new template channel configuration based on the system channel's current config.
+//根据系统通道最新配置新建一个初始的通道配置
 func (r *Registrar) NewChannelConfig(envConfigUpdate *cb.Envelope) (channelconfig.Resources, error) {
 	return r.templator.NewChannelConfig(envConfigUpdate)
 }
 
 // CreateBundle calls channelconfig.NewBundle
+//获取通道配置包
 func (r *Registrar) CreateBundle(channelID string, config *cb.Config) (channelconfig.Resources, error) {
 	return channelconfig.NewBundle(channelID, config, r.bccsp)
 }
