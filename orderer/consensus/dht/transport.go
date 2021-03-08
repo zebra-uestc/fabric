@@ -20,9 +20,9 @@ import (
 //     rpc TransMsg(Msg) returns (DhtStatus){};
 // }
 
-// server端
+// server端 TODO
 func (ch *chain) LoadConfig(ctx context.Context, s *bridge.DhtStatus) (*bridge.Block, error) {
-	var err error
+	// var err error
 	// //加载配置参数！！！
 	// 加载创世区块的hash
 	var genesisblock *bridge.Block
@@ -34,7 +34,7 @@ func (ch *chain) TransBlock(tx context.Context, block *bridge.Block) (*bridge.Dh
 	var s *bridge.DhtStatus
 	var err error
 	// 把收到的block送入channel。在dht.go里面从channel取出进行writeblock
-	ch.receiveChan <- block
+	ch.receiveChan <- ch.ConvertBlock(block)
 
 	return s, err
 }
