@@ -8,14 +8,20 @@ package dht
 
 import (
 	"fmt"
-	"sync"
+	"log"
+	"net"
 	"time"
 
 	cb "github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric/common/flogging"
+
+	mc "github.com/hyperledger/fabric/orderer/common/multichannel"
 	"github.com/hyperledger/fabric/orderer/consensus"
-	"github.com/hyperledger/fabric/orderer/consensus/dht/bridge"
+
+	// "github.com/hyperledger/fabric/orderer/consensus/dht/bridge"
 	"github.com/hyperledger/fabric/protoutil"
+
+	"./bridge"
 
 	"google.golang.org/grpc"
 )
@@ -50,22 +56,24 @@ var logger = flogging.MustGetLogger("orderer.consensus.dht")
 type consenter struct{}
 
 type chain struct {
-	*bridge.UnimplementedBridgeServer
+	*bridge.UnimplementedBlockTranserServer
+	// *bridge.UnimplementedMsgTranserServer
 
-	support  consensus.ConsenterSupport
-	sendChan chan *message
-	exitChan chan struct{}
+	support consensus.ConsenterSupport
 
-	cnf       *TransportConfig // 存储node0的地址
-	transport Transport        // LoadConfig函数实现以及grpc封装函数
-	tsMtx     sync.RWMutex
+	sendChan    chan *bridge.Msg
+	receiveChan chan *bridge.Block
+	exitChan    chan struct{}
+
+	cnf *TransportConfig // 存储node0的地址
+
 }
 
-type message struct {
-	configSeq uint64
-	normalMsg *cb.Envelope
-	configMsg *cb.Envelope
-}
+// type message struct {
+// 	configSeq uint64
+// 	normalMsg *cb.Envelope
+// 	configMsg *cb.Envelope
+// }
 
 // New creates a new consenter for the dht consensus scheme.
 // The dht consensus scheme is very simple, and allows only one consenter for a given chain (this process).
@@ -82,9 +90,10 @@ func (dht *consenter) HandleChain(support consensus.ConsenterSupport, metadata *
 
 func newChain(support consensus.ConsenterSupport) *chain {
 	return &chain{
-		support:  support,
-		sendChan: make(chan *message),
-		exitChan: make(chan struct{}),
+		support:     support,
+		sendChan:    make(chan *bridge.Msg),
+		receiveChan: make(chan *bridge.Block),
+		exitChan:    make(chan struct{}),
 	}
 }
 
@@ -109,9 +118,9 @@ func (ch *chain) WaitReady() error {
 // Order accepts normal messages for ordering
 func (ch *chain) Order(env *cb.Envelope, configSeq uint64) error {
 	select {
-	case ch.sendChan <- &message{
-		configSeq: configSeq,
-		normalMsg: env,
+	case ch.sendChan <- &bridge.Msg{
+		ConfigSeq: configSeq,
+		NormalMsg: env,
 	}:
 		return nil
 	case <-ch.exitChan:
@@ -122,9 +131,9 @@ func (ch *chain) Order(env *cb.Envelope, configSeq uint64) error {
 // Configure accepts configuration update messages for ordering
 func (ch *chain) Configure(config *cb.Envelope, configSeq uint64) error {
 	select {
-	case ch.sendChan <- &message{
-		configSeq: configSeq,
-		configMsg: config,
+	case ch.sendChan <- &bridge.Msg{
+		ConfigSeq: configSeq,
+		ConfigMsg: cfg,
 	}:
 		return nil
 	case <-ch.exitChan:
@@ -141,19 +150,6 @@ func (ch *chain) main() {
 	// var timer <-chan time.Time
 	var err error
 	// Start RPC server
-	go func() {
-		cnf := DefaultTransportConfig()
-		transport, err := NewGrpcTransport(cnf)
-		if err != nil {
-			return
-		}
-
-		ch.transport = transport // 为什么会报错！！！这里和node.go:124行完全一样
-
-		bridge.RegisterBridgeServer(transport.server, ch)
-
-		bridge.transport.Start()
-	}()
 
 	// 把message发送给dht
 	go func() {
@@ -162,29 +158,29 @@ func (ch *chain) main() {
 			err = nil
 			select {
 			case msg := <-ch.sendChan:
-				if msg.configMsg == nil {
+				if msg.ConfigMsg == nil {
 					// NormalMsg
-					if msg.configSeq < seq {
-						_, err = ch.support.ProcessNormalMsg(msg.normalMsg)
+					if msg.ConfigSeq < seq {
+						_, err = ch.support.ProcessNormalMsg(msg.NormalMsg)
 						if err != nil {
 							logger.Warningf("Discarding bad normal message: %s", err)
 							continue
 						}
 					}
 					// 发送msg###
-					ch.transport.TransMsgClient(msg)
+					ch.TransMsgClient(msg)
 
 				} else {
 					// ConfigMsg
-					if msg.configSeq < seq {
-						msg.configMsg, _, err = ch.support.ProcessConfigMsg(msg.configMsg)
+					if msg.ConfigSeq < seq {
+						msg.ConfigMsg, _, err = ch.support.ProcessConfigMsg(msg.ConfigMsg)
 						if err != nil {
 							logger.Warningf("Discarding bad config message: %s", err)
 							continue
 						}
 					}
 					// 发送msg###
-					ch.transport.TransMsgClient(msg)
+					ch.TransMsgClient(msg)
 				}
 			case <-ch.exitChan:
 				logger.Debugf("Exiting")
@@ -196,15 +192,16 @@ func (ch *chain) main() {
 	// 把从dht接受的block写入账本
 	go func() {
 		for {
-
-			// 从node0处获得block###
-
-			// write block！！！
+			// 从node0处获得block
+			block := <-ch.receiveChan
+			// write block
 			// multichannel/blockwriter.go/WriteConfigBlock
 			msg, _ := protoutil.ExtractEnvelope(block, 0)
 			// broadcast/broadcast.go/ProcessMessage
 			// 想办法代替这个函数，或者找到这个函数的实现并import！！！
-			_, isConfig, _, _ := ch.SupportRegistrar.BroadcastChannelSupport(msg)
+			// multichannel/registerar.go
+			// 返回消息的通道头，检查是否是配置交易BroadcastChannelSupport(msg *cb.Envelope)
+			_, isConfig, _, _ := ch.IsConfig(msg)
 			if !isConfig {
 				ch.support.WriteBlock(block, nil)
 			} else {
@@ -213,4 +210,28 @@ func (ch *chain) main() {
 			return
 		}
 	}()
+}
+
+func (ch *chain) StartTransBlockServer(address string) {
+	go ch.startTransBlockServer(address)
+}
+
+func (ch *chain) startTransBlockServer(address string) {
+	println("TransBlockServer listen:", address)
+	lis, err := net.Listen("tcp", address)
+	if err != nil {
+		log.Fatal("failed to listen: ", err)
+	}
+	s := grpc.NewServer()
+	bridge.RegisterBlockTranserServer(s, ch)
+	println("TransBlockServer start serve")
+	if err := s.Serve(lis); err != nil {
+		log.Fatal("fail to  serve:", err)
+	}
+	println("TransBlockServer serve end")
+}
+
+func (ch *chain) IsConfig(msg *cb.Envelope) bool {
+	_, isConfig, _, _ := mc.BroadcastChannelSupport(msg)
+	return isConfig
 }

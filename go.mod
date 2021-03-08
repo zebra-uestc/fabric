@@ -62,6 +62,7 @@ require (
 	golang.org/x/sys v0.0.0-20201116194326-cc9327a14d48 // indirect
 	golang.org/x/tools v0.0.0-20201117021029-3c3a81204b10
 	google.golang.org/grpc v1.33.2
+	google.golang.org/protobuf v1.25.0
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/cheggaaa/pb.v1 v1.0.25
 	gopkg.in/yaml.v2 v2.3.0

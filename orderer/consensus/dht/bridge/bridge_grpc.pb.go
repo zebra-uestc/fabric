@@ -14,162 +14,210 @@ import (
 // Requires gRPC-Go v1.32.0 or later.
 const _ = grpc.SupportPackageIsVersion7
 
-// BridgeClient is the client API for Bridge service.
+// BlockTranserClient is the client API for BlockTranser service.
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
-type BridgeClient interface {
+type BlockTranserClient interface {
 	// 由发送方调用函数，接收方实现函数
-	TransMsg(ctx context.Context, in *Msg, opts ...grpc.CallOption) (*Status, error)
-	TransBlock(ctx context.Context, in *Block, opts ...grpc.CallOption) (*Status, error)
-	// dht调用，orderer实现
-	LoadConfig(ctx context.Context, in *Status, opts ...grpc.CallOption) (*Config, error)
+	TransBlock(ctx context.Context, in *Block, opts ...grpc.CallOption) (*DhtStatus, error)
+	LoadConfig(ctx context.Context, in *DhtStatus, opts ...grpc.CallOption) (*Block, error)
 }
 
-type bridgeClient struct {
+type blockTranserClient struct {
 	cc grpc.ClientConnInterface
 }
 
-func NewBridgeClient(cc grpc.ClientConnInterface) BridgeClient {
-	return &bridgeClient{cc}
+func NewBlockTranserClient(cc grpc.ClientConnInterface) BlockTranserClient {
+	return &blockTranserClient{cc}
 }
 
-func (c *bridgeClient) TransMsg(ctx context.Context, in *Msg, opts ...grpc.CallOption) (*Status, error) {
-	out := new(Status)
-	err := c.cc.Invoke(ctx, "/Bridge/TransMsg", in, out, opts...)
+func (c *blockTranserClient) TransBlock(ctx context.Context, in *Block, opts ...grpc.CallOption) (*DhtStatus, error) {
+	out := new(DhtStatus)
+	err := c.cc.Invoke(ctx, "/bridge.BlockTranser/TransBlock", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *bridgeClient) TransBlock(ctx context.Context, in *Block, opts ...grpc.CallOption) (*Status, error) {
-	out := new(Status)
-	err := c.cc.Invoke(ctx, "/Bridge/TransBlock", in, out, opts...)
+func (c *blockTranserClient) LoadConfig(ctx context.Context, in *DhtStatus, opts ...grpc.CallOption) (*Block, error) {
+	out := new(Block)
+	err := c.cc.Invoke(ctx, "/bridge.BlockTranser/LoadConfig", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
 	return out, nil
 }
 
-func (c *bridgeClient) LoadConfig(ctx context.Context, in *Status, opts ...grpc.CallOption) (*Config, error) {
-	out := new(Config)
-	err := c.cc.Invoke(ctx, "/Bridge/LoadConfig", in, out, opts...)
-	if err != nil {
-		return nil, err
-	}
-	return out, nil
-}
-
-// BridgeServer is the server API for Bridge service.
-// All implementations must embed UnimplementedBridgeServer
+// BlockTranserServer is the server API for BlockTranser service.
+// All implementations must embed UnimplementedBlockTranserServer
 // for forward compatibility
-type BridgeServer interface {
+type BlockTranserServer interface {
 	// 由发送方调用函数，接收方实现函数
-	TransMsg(context.Context, *Msg) (*Status, error)
-	TransBlock(context.Context, *Block) (*Status, error)
-	// dht调用，orderer实现
-	LoadConfig(context.Context, *Status) (*Config, error)
-	mustEmbedUnimplementedBridgeServer()
+	TransBlock(context.Context, *Block) (*DhtStatus, error)
+	LoadConfig(context.Context, *DhtStatus) (*Block, error)
+	mustEmbedUnimplementedBlockTranserServer()
 }
 
-// UnimplementedBridgeServer must be embedded to have forward compatible implementations.
-type UnimplementedBridgeServer struct {
+// UnimplementedBlockTranserServer must be embedded to have forward compatible implementations.
+type UnimplementedBlockTranserServer struct {
 }
 
-func (UnimplementedBridgeServer) TransMsg(context.Context, *Msg) (*Status, error) {
-	return nil, status.Errorf(codes.Unimplemented, "method TransMsg not implemented")
-}
-func (UnimplementedBridgeServer) TransBlock(context.Context, *Block) (*Status, error) {
+func (UnimplementedBlockTranserServer) TransBlock(context.Context, *Block) (*DhtStatus, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method TransBlock not implemented")
 }
-func (UnimplementedBridgeServer) LoadConfig(context.Context, *Status) (*Config, error) {
+func (UnimplementedBlockTranserServer) LoadConfig(context.Context, *DhtStatus) (*Block, error) {
 	return nil, status.Errorf(codes.Unimplemented, "method LoadConfig not implemented")
 }
-func (UnimplementedBridgeServer) mustEmbedUnimplementedBridgeServer() {}
+func (UnimplementedBlockTranserServer) mustEmbedUnimplementedBlockTranserServer() {}
 
-// UnsafeBridgeServer may be embedded to opt out of forward compatibility for this service.
-// Use of this interface is not recommended, as added methods to BridgeServer will
+// UnsafeBlockTranserServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to BlockTranserServer will
 // result in compilation errors.
-type UnsafeBridgeServer interface {
-	mustEmbedUnimplementedBridgeServer()
+type UnsafeBlockTranserServer interface {
+	mustEmbedUnimplementedBlockTranserServer()
 }
 
-func RegisterBridgeServer(s grpc.ServiceRegistrar, srv BridgeServer) {
-	s.RegisterService(&Bridge_ServiceDesc, srv)
+func RegisterBlockTranserServer(s grpc.ServiceRegistrar, srv BlockTranserServer) {
+	s.RegisterService(&BlockTranser_ServiceDesc, srv)
 }
 
-func _Bridge_TransMsg_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Msg)
-	if err := dec(in); err != nil {
-		return nil, err
-	}
-	if interceptor == nil {
-		return srv.(BridgeServer).TransMsg(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/Bridge/TransMsg",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BridgeServer).TransMsg(ctx, req.(*Msg))
-	}
-	return interceptor(ctx, in, info, handler)
-}
-
-func _Bridge_TransBlock_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+func _BlockTranser_TransBlock_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
 	in := new(Block)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(BridgeServer).TransBlock(ctx, in)
+		return srv.(BlockTranserServer).TransBlock(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/Bridge/TransBlock",
+		FullMethod: "/bridge.BlockTranser/TransBlock",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BridgeServer).TransBlock(ctx, req.(*Block))
+		return srv.(BlockTranserServer).TransBlock(ctx, req.(*Block))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-func _Bridge_LoadConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(Status)
+func _BlockTranser_LoadConfig_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(DhtStatus)
 	if err := dec(in); err != nil {
 		return nil, err
 	}
 	if interceptor == nil {
-		return srv.(BridgeServer).LoadConfig(ctx, in)
+		return srv.(BlockTranserServer).LoadConfig(ctx, in)
 	}
 	info := &grpc.UnaryServerInfo{
 		Server:     srv,
-		FullMethod: "/Bridge/LoadConfig",
+		FullMethod: "/bridge.BlockTranser/LoadConfig",
 	}
 	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(BridgeServer).LoadConfig(ctx, req.(*Status))
+		return srv.(BlockTranserServer).LoadConfig(ctx, req.(*DhtStatus))
 	}
 	return interceptor(ctx, in, info, handler)
 }
 
-// Bridge_ServiceDesc is the grpc.ServiceDesc for Bridge service.
+// BlockTranser_ServiceDesc is the grpc.ServiceDesc for BlockTranser service.
 // It's only intended for direct use with grpc.RegisterService,
 // and not to be introspected or modified (even as a copy)
-var Bridge_ServiceDesc = grpc.ServiceDesc{
-	ServiceName: "Bridge",
-	HandlerType: (*BridgeServer)(nil),
+var BlockTranser_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "bridge.BlockTranser",
+	HandlerType: (*BlockTranserServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "TransMsg",
-			Handler:    _Bridge_TransMsg_Handler,
-		},
-		{
 			MethodName: "TransBlock",
-			Handler:    _Bridge_TransBlock_Handler,
+			Handler:    _BlockTranser_TransBlock_Handler,
 		},
 		{
 			MethodName: "LoadConfig",
-			Handler:    _Bridge_LoadConfig_Handler,
+			Handler:    _BlockTranser_LoadConfig_Handler,
+		},
+	},
+	Streams:  []grpc.StreamDesc{},
+	Metadata: "bridge.proto",
+}
+
+// MsgTranserClient is the client API for MsgTranser service.
+//
+// For semantics around ctx use and closing/ending streaming RPCs, please refer to https://pkg.go.dev/google.golang.org/grpc/?tab=doc#ClientConn.NewStream.
+type MsgTranserClient interface {
+	TransMsg(ctx context.Context, in *Msg, opts ...grpc.CallOption) (*DhtStatus, error)
+}
+
+type msgTranserClient struct {
+	cc grpc.ClientConnInterface
+}
+
+func NewMsgTranserClient(cc grpc.ClientConnInterface) MsgTranserClient {
+	return &msgTranserClient{cc}
+}
+
+func (c *msgTranserClient) TransMsg(ctx context.Context, in *Msg, opts ...grpc.CallOption) (*DhtStatus, error) {
+	out := new(DhtStatus)
+	err := c.cc.Invoke(ctx, "/bridge.MsgTranser/TransMsg", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+// MsgTranserServer is the server API for MsgTranser service.
+// All implementations must embed UnimplementedMsgTranserServer
+// for forward compatibility
+type MsgTranserServer interface {
+	TransMsg(context.Context, *Msg) (*DhtStatus, error)
+	mustEmbedUnimplementedMsgTranserServer()
+}
+
+// UnimplementedMsgTranserServer must be embedded to have forward compatible implementations.
+type UnimplementedMsgTranserServer struct {
+}
+
+func (UnimplementedMsgTranserServer) TransMsg(context.Context, *Msg) (*DhtStatus, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method TransMsg not implemented")
+}
+func (UnimplementedMsgTranserServer) mustEmbedUnimplementedMsgTranserServer() {}
+
+// UnsafeMsgTranserServer may be embedded to opt out of forward compatibility for this service.
+// Use of this interface is not recommended, as added methods to MsgTranserServer will
+// result in compilation errors.
+type UnsafeMsgTranserServer interface {
+	mustEmbedUnimplementedMsgTranserServer()
+}
+
+func RegisterMsgTranserServer(s grpc.ServiceRegistrar, srv MsgTranserServer) {
+	s.RegisterService(&MsgTranser_ServiceDesc, srv)
+}
+
+func _MsgTranser_TransMsg_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(Msg)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(MsgTranserServer).TransMsg(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/bridge.MsgTranser/TransMsg",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(MsgTranserServer).TransMsg(ctx, req.(*Msg))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+// MsgTranser_ServiceDesc is the grpc.ServiceDesc for MsgTranser service.
+// It's only intended for direct use with grpc.RegisterService,
+// and not to be introspected or modified (even as a copy)
+var MsgTranser_ServiceDesc = grpc.ServiceDesc{
+	ServiceName: "bridge.MsgTranser",
+	HandlerType: (*MsgTranserServer)(nil),
+	Methods: []grpc.MethodDesc{
+		{
+			MethodName: "TransMsg",
+			Handler:    _MsgTranser_TransMsg_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
