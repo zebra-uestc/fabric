@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"errors"
 
 	cb "github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric/common/flogging"
@@ -62,6 +63,10 @@ func New() consensus.Consenter {
 func (dht *consenter) HandleChain(support consensus.ConsenterSupport, metadata *cb.Metadata) (consensus.Chain, error) {
 	logger.Warningf("Use of the Solo orderer is deprecated and remains only for use in test environments but may be removed in the future.")
 	return NewChain(support), nil
+}
+
+func (dht *consenter) JoinChain(support consensus.ConsenterSupport, joinBlock *cb.Block) (consensus.Chain, error) {
+	return nil, errors.New("the Solo orderer does not support JoinChain")
 }
 
 func NewChain(support consensus.ConsenterSupport) *chain {
