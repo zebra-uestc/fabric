@@ -10,6 +10,7 @@ import (
 	"bytes"
 	"context"
 	"fmt"
+	"github.com/hyperledger/fabric/orderer/consensus/dht"
 	"io/ioutil"
 	"net"
 	"net/http"
@@ -737,6 +738,7 @@ func initializeMultichannelRegistrar(
 	}
 
 	consenters["solo"] = solo.New()
+	consenters["dht"] = dht.New()
 	var kafkaMetrics *kafka.Metrics
 	consenters["kafka"], kafkaMetrics = kafka.New(conf.Kafka, metricsProvider, healthChecker, icr, registrar.CreateChain)
 
