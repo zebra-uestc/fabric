@@ -26,3 +26,4 @@ TESTS*.xml
 .vagrant/
 .vscode
 __debug_bin
+vendor
