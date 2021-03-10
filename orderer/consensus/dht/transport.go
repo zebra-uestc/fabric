@@ -6,9 +6,11 @@ import (
 	"log"
 	"time"
 
-	"github.com/hyperledger/fabric/orderer/consensus/dht/bridge"
+	"github.com/gogo/protobuf/proto"
+	"github.com/zebra-uestc/chord/models/bridge"
 	"google.golang.org/grpc"
-	// "github.com/hyperledger/fabric/orderer/consensus/dht/bridge"
+
+	cb "github.com/hyperledger/fabric-protos-go/common"
 )
 
 // service BlockTranser{
@@ -31,11 +33,13 @@ func (ch *chain) LoadConfig(ctx context.Context, s *bridge.DhtStatus) (*bridge.C
 	return nil, nil
 }
 
-func (ch *chain) TransBlock(tx context.Context, block *bridge.Block) (*bridge.DhtStatus, error) {
+func (ch *chain) TransBlock(tx context.Context, blockByte *bridge.BlockBytes) (*bridge.DhtStatus, error) {
 	var s *bridge.DhtStatus
 	var err error
+	var block *cb.Block
+	err = proto.Unmarshal(blockByte.BlockPayload,block)
 	// 把收到的block送入channel。在dht.go里面从channel取出进行writeblock
-	ch.receiveChan <- ch.ConvertBlock(block)
+	ch.receiveChan <- block
 
 	return s, err
 }

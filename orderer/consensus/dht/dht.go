@@ -7,10 +7,10 @@
 package dht
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"net"
-	"errors"
 
 	cb "github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric/common/flogging"
@@ -18,8 +18,8 @@ import (
 	"github.com/hyperledger/fabric/orderer/common/msgprocessor"
 	"github.com/hyperledger/fabric/orderer/consensus"
 
+	"github.com/zebra-uestc/chord/models/bridge"
 	"github.com/hyperledger/fabric/protoutil"
-	"github.com/hyperledger/fabric/orderer/consensus/dht/bridge"
 
 	"google.golang.org/grpc"
 )
@@ -61,6 +61,7 @@ func New() consensus.Consenter {
 }
 
 func (dht *consenter) HandleChain(support consensus.ConsenterSupport, metadata *cb.Metadata) (consensus.Chain, error) {
+	logger.Warningf("Use of the Solo orderer is deprecated and remains only for use in test environments but may be removed in the future.")
 	return NewChain(support), nil
 }
 
@@ -69,11 +70,15 @@ func (dht *consenter) JoinChain(support consensus.ConsenterSupport, joinBlock *c
 }
 
 func NewChain(support consensus.ConsenterSupport) *chain {
+
+	config := &TransportConfig{Addr:"127.0.0.1:8003"}
 	return &chain{
 		support:     support,
 		sendChan:    make(chan *message),
 		receiveChan: make(chan *cb.Block),
 		exitChan:    make(chan struct{}),
+		cnf: 	     config,
+
 	}
 }
 
@@ -97,6 +102,10 @@ func (ch *chain) WaitReady() error {
 
 // Order accepts normal messages for ordering
 func (ch *chain) Order(env *cb.Envelope, configSeq uint64) error {
+	// e, _ := protoutil.Marshal(env)
+	// var tmp cb.Envelope
+	// protoutil.UnmarshalEnvelopeOfType(e,_, tmp)
+
 	select {
 	case ch.sendChan <- &message{
 		configSeq: configSeq,
@@ -110,6 +119,7 @@ func (ch *chain) Order(env *cb.Envelope, configSeq uint64) error {
 
 // Configure accepts configuration update messages for ordering
 func (ch *chain) Configure(config *cb.Envelope, configSeq uint64) error {
+
 	select {
 	case ch.sendChan <- &message{
 		configSeq: configSeq,
@@ -130,6 +140,7 @@ func (ch *chain) main() {
 	// var timer <-chan time.Time
 	var err error
 	// Start RPC server
+	ch.StartTransBlockServer("127.0.0.1:6666")
 
 	// 把message发送给dhtto
 	go func() {
@@ -149,7 +160,16 @@ func (ch *chain) main() {
 					}
 					//trans cb.env to bm.env
 					// 发送msg
-					ch.TransMsgClient(ch.ConvertMessage(msg))
+
+					var mc,mn []byte
+					if msg.configMsg != nil {
+						mc, _ = protoutil.Marshal(msg.configMsg)
+					}
+					if msg.normalMsg != nil {
+						mn, _ = protoutil.Marshal(msg.normalMsg)
+					}
+
+					ch.TransMsgClient(&bridge.Msg{ConfigSeq: msg.configSeq, ConfigMsg: mc, NormalMsg: mn})
 
 				} else {
 					// ConfigMsg
@@ -161,7 +181,9 @@ func (ch *chain) main() {
 						}
 					}
 					// 发送msg
-					ch.TransMsgClient(ch.ConvertMessage(msg))
+					mc, _ := protoutil.Marshal(msg.configMsg)
+					mn, _ := protoutil.Marshal(msg.normalMsg)
+					ch.TransMsgClient(&bridge.Msg{ConfigSeq: msg.configSeq, ConfigMsg: mc, NormalMsg: mn})
 				}
 			case <-ch.exitChan:
 				logger.Debugf("Exiting")
@@ -227,49 +249,49 @@ func (ch *chain) IsConfig(msg *cb.Envelope) bool {
 	return isConfig
 }
 
-func (ch *chain) ConvertEnvelope(msg *cb.Envelope) *bridge.Envelope {
-	var ret *bridge.Envelope
-	ret.Payload = msg.Payload
-	ret.Signature = msg.Signature
-	return ret
-}
+// func (ch *chain) ConvertEnvelope(msg *cb.Envelope) *bridge.Envelope {
+// 	var ret *bridge.Envelope
+// 	ret.Payload = msg.Payload
+// 	ret.Signature = msg.Signature
+// 	return ret
+// }
 
-func (ch *chain) ConvertMessage(msg *message) *bridge.Msg {
-	var ret *bridge.Msg
-	ret.ConfigSeq = msg.configSeq
-	ret.ConfigMsg = ch.ConvertEnvelope(msg.configMsg)
-	ret.NormalMsg = ch.ConvertEnvelope(msg.normalMsg)
-	return ret
-}
+// func (ch *chain) ConvertMessage(msg *message) *bridge.Msg {
+// 	var ret *bridge.Msg
+// 	ret.ConfigSeq = msg.configSeq
+// 	ret.ConfigMsg = ch.ConvertEnvelope(msg.configMsg)
+// 	ret.NormalMsg = ch.ConvertEnvelope(msg.normalMsg)
+// 	return ret
+// }
 
-func (ch *chain) ConvertBlock(block *bridge.Block) *cb.Block {
-	var ret *cb.Block
-	ret.Data = ch.ConvertBlockData(block.Data)
-	ret.Header = ch.ConvertBlockHeader(block.Header)
-	ret.Metadata = ch.ConvertBlockMetadata(block.Metadata)
+// func (ch *chain) ConvertBlock(block *bridge.Block) *cb.Block {
+// 	var ret *cb.Block
+// 	ret.Data = ch.ConvertBlockData(block.Data)
+// 	ret.Header = ch.ConvertBlockHeader(block.Header)
+// 	ret.Metadata = ch.ConvertBlockMetadata(block.Metadata)
 
-	return ret
-}
+// 	return ret
+// }
 
-func (ch *chain) ConvertBlockData(data *bridge.BlockData) *cb.BlockData {
-	var ret *cb.BlockData
-	ret.Data = data.Data
+// func (ch *chain) ConvertBlockData(data *bridge.BlockData) *cb.BlockData {
+// 	var ret *cb.BlockData
+// 	ret.Data = data.Data
 
-	return ret
-}
+// 	return ret
+// }
 
-func (ch *chain) ConvertBlockHeader(bh *bridge.BlockHeader) *cb.BlockHeader {
-	var ret *cb.BlockHeader
-	ret.DataHash = bh.DataHash
-	ret.Number = bh.Number
-	ret.PreviousHash = bh.PreviousHash
+// func (ch *chain) ConvertBlockHeader(bh *bridge.BlockHeader) *cb.BlockHeader {
+// 	var ret *cb.BlockHeader
+// 	ret.DataHash = bh.DataHash
+// 	ret.Number = bh.Number
+// 	ret.PreviousHash = bh.PreviousHash
 
-	return ret
-}
+// 	return ret
+// }
 
-func (ch *chain) ConvertBlockMetadata(m *bridge.BlockMetadata) *cb.BlockMetadata {
-	var ret *cb.BlockMetadata
-	ret.Metadata = m.Metadata
+// func (ch *chain) ConvertBlockMetadata(m *bridge.BlockMetadata) *cb.BlockMetadata {
+// 	var ret *cb.BlockMetadata
+// 	ret.Metadata = m.Metadata
 
-	return ret
-}
+// 	return ret
+// }
