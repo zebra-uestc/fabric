@@ -113,6 +113,7 @@ func (o *OrdererGroup) Configuration() (Orderer, error) {
 
 	switch consensusTypeProto.Type {
 	case orderer.ConsensusTypeSolo:
+	case orderer.ConsensusTypeDht:
 	case orderer.ConsensusTypeKafka:
 		kafkaBrokersValue, ok := o.ordererGroup.Values[orderer.KafkaBrokersKey]
 		if !ok {

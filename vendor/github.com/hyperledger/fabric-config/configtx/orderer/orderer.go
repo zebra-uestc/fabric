@@ -21,6 +21,9 @@ const (
 	// ConsensusTypeSolo identifies the solo consensus implementation.
 	ConsensusTypeSolo = "solo"
 
+	// ConsensusTypeDht identifies the dhtt consensus implementation.
+	ConsensusTypeDht = "dht"
+
 	// ConsensusTypeKafka identifies the Kafka-based consensus implementation.
 	ConsensusTypeKafka = "kafka"
 
