@@ -31,14 +31,14 @@ import (
 func (ch *chain) LoadConfig(ctx context.Context, s *bridge.DhtStatus) (*bridge.Config, error) {
 	// 加载配置参数
 	//var genesisblock *bridge.Block
-	if chainSupport, ok := ch.support.(*multichannel.ChainSupport); ok{
-		if ledger, ok :=  chainSupport.ReadWriter.(*fileledger.FileLedger); ok{
-			if blockstore, ok := ledger.BlockStore().(*blkstorage.BlockStore); ok{
-				if bcInfo, err := blockstore.GetBlockchainInfo(); err == nil{
+	if chainSupport, ok := ch.support.(*multichannel.ChainSupport); ok {
+		if ledger, ok := chainSupport.ReadWriter.(*fileledger.FileLedger); ok {
+			if blockstore, ok := ledger.BlockStore().(*blkstorage.BlockStore); ok {
+				if bcInfo, err := blockstore.GetBlockchainInfo(); err == nil {
 					return &bridge.Config{
-								PrevBlockHash: bcInfo.CurrentBlockHash,
-								LastBlockNum:  bcInfo.Height,
-							},nil
+						PrevBlockHash: bcInfo.CurrentBlockHash,
+						LastBlockNum:  bcInfo.Height,
+					}, nil
 				}
 			}
 		}
@@ -50,7 +50,9 @@ func (ch *chain) LoadConfig(ctx context.Context, s *bridge.DhtStatus) (*bridge.C
 func (ch *chain) TransBlock(tx context.Context, blockByte *bridge.BlockBytes) (*bridge.DhtStatus, error) {
 	block, err := protoutil.UnmarshalBlock(blockByte.BlockPayload)
 	// 把收到的block送入channel。在dht.go里面从channel取出进行writeblock
+	// println("trans block1", block.Header.Number)
 	ch.receiveChan <- block
+	// println("trans block2", block.Header.Number)
 
 	return &bridge.DhtStatus{}, err
 }
@@ -63,13 +65,14 @@ func (ch *chain) TransMsgClient(msg *bridge.MsgBytes) error {
 	}
 	client := bridge.NewMsgTranserClient(conn)
 
-	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
 	_, err = client.TransMsg(ctx, msg)
 
 	if err != nil {
 		log.Fatalf("could not transcation MsgBytes: %v", err)
 	}
-	println("trans")
+	conn.Close()
+	// println("trans")
 	return err
 }

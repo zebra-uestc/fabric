@@ -18,8 +18,8 @@ import (
 	"github.com/hyperledger/fabric/orderer/common/msgprocessor"
 	"github.com/hyperledger/fabric/orderer/consensus"
 
-	"github.com/zebra-uestc/chord/models/bridge"
 	"github.com/hyperledger/fabric/protoutil"
+	"github.com/zebra-uestc/chord/models/bridge"
 
 	"google.golang.org/grpc"
 )
@@ -70,14 +70,13 @@ func (dht *consenter) JoinChain(support consensus.ConsenterSupport, joinBlock *c
 
 func NewChain(support consensus.ConsenterSupport) *chain {
 
-	config := &TransportConfig{Addr:"127.0.0.1:8003"}
+	config := &TransportConfig{Addr: "127.0.0.1:8003"}
 	return &chain{
 		support:     support,
-		sendChan:    make(chan *message,  10),
+		sendChan:    make(chan *message, 10),
 		receiveChan: make(chan *cb.Block, 10),
 		exitChan:    make(chan struct{}),
-		cnf: 	     config,
-
+		cnf:         config,
 	}
 }
 
@@ -104,7 +103,18 @@ func (ch *chain) Order(env *cb.Envelope, configSeq uint64) error {
 	// e, _ := protoutil.Marshal(env)
 	// var tmp cb.Envelope
 	// protoutil.UnmarshalEnvelopeOfType(e,_, tmp)
-
+	// go func() error {
+	// 	select {
+	// 	case ch.sendChan <- &message{
+	// 		configSeq: configSeq,
+	// 		normalMsg: env,
+	// 	}:
+	// 		return nil
+	// 	case <-ch.exitChan:
+	// 		return fmt.Errorf("Exiting")
+	// 	}
+	// }()
+	// return nil
 	select {
 	case ch.sendChan <- &message{
 		configSeq: configSeq,
@@ -114,6 +124,7 @@ func (ch *chain) Order(env *cb.Envelope, configSeq uint64) error {
 	case <-ch.exitChan:
 		return fmt.Errorf("Exiting")
 	}
+
 }
 
 // Configure accepts configuration update messages for ordering
@@ -141,13 +152,18 @@ func (ch *chain) main() {
 	// Start RPC server
 	ch.StartTransBlockServer("127.0.0.1:6666")
 
+	var cnt uint = 0
+
 	// 把message发送给dhtto
 	go func() {
 		for {
 			seq := ch.support.Sequence()
 			err = nil
 			select {
-			case msg := <-ch.sendChan:
+			case msg, ok := <-ch.sendChan:
+				if !ok {
+					println("channel sendChan is closed!")
+				}
 				if msg.configMsg == nil {
 					// NormalMsg
 					if msg.configSeq < seq {
@@ -159,11 +175,14 @@ func (ch *chain) main() {
 					}
 					//trans cb.env to bm.env
 					// 发送msg
+					cnt = cnt + 1
+					fmt.Println("trans", cnt)
+
 					mc, _ := protoutil.Marshal(msg.configMsg)
 					mn, _ := protoutil.Marshal(msg.normalMsg)
 					ch.TransMsgClient(&bridge.MsgBytes{
-						ConfigSeq: msg.configSeq, 
-						ConfigMsg: mc, 
+						ConfigSeq: msg.configSeq,
+						ConfigMsg: mc,
 						NormalMsg: mn,
 					})
 
@@ -192,7 +211,10 @@ func (ch *chain) main() {
 	go func() {
 		for {
 			// 从node0处获得block
-			block := <-ch.receiveChan
+			block, ok := <-ch.receiveChan
+			if !ok {
+				println("channel receiveChan is closed!")
+			}
 			// write block
 			// multichannel/blockwriter.go/WriteConfigBlock
 			// msg, _ := protoutil.ExtractEnvelope(block, 0)
@@ -202,12 +224,14 @@ func (ch *chain) main() {
 			// 返回消息的通道头，检查是否是配置交易BroadcastChannelSupport(msg *cb.Envelope)
 			// isConfig := ch.IsConfig(msg)
 			// if !isConfig {
-				ch.support.WriteBlock(block, nil)
+			ch.support.WriteBlock(block, nil)
 			// } else {
 			// 	ch.support.WriteConfigBlock(block, nil)
 			// }
 		}
 	}()
+
+
 }
 
 func (ch *chain) StartTransBlockServer(address string) {
