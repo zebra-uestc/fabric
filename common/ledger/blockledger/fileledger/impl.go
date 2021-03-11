@@ -111,3 +111,8 @@ func (fl *FileLedger) Append(block *cb.Block) error {
 	}
 	return err
 }
+
+// BlockStore return BlockStore
+func (fl *FileLedger) BlockStore() FileLedgerBlockStore {
+	return fl.blockStore
+}

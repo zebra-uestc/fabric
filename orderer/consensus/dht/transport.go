@@ -11,6 +11,9 @@ import (
 	"google.golang.org/grpc"
 
 	// cb "github.com/hyperledger/fabric-protos-go/common"
+	"github.com/hyperledger/fabric/common/ledger/blkstorage"
+	"github.com/hyperledger/fabric/common/ledger/blockledger/fileledger"
+	"github.com/hyperledger/fabric/orderer/common/multichannel"
 	"github.com/hyperledger/fabric/protoutil"
 )
 
@@ -26,12 +29,22 @@ import (
 
 // server端 TODO
 func (ch *chain) LoadConfig(ctx context.Context, s *bridge.DhtStatus) (*bridge.Config, error) {
-	// var err error
-	// //加载配置参数！！！
-	// 加载创世区块的hash
+	// 加载配置参数
 	//var genesisblock *bridge.Block
-
-	return nil, nil
+	if chainSupport, ok := ch.support.(*multichannel.ChainSupport); ok{
+		if ledger, ok :=  chainSupport.ReadWriter.(*fileledger.FileLedger); ok{
+			if blockstore, ok := ledger.BlockStore().(*blkstorage.BlockStore); ok{
+				if bcInfo, err := blockstore.GetBlockchainInfo(); err == nil{
+					return &bridge.Config{
+								PrevBlockHash: bcInfo.CurrentBlockHash,
+								LastBlockNum:  bcInfo.Height,
+							},nil
+				}
+			}
+		}
+	}
+	println("failed get config")
+	return &bridge.Config{}, nil
 }
 
 func (ch *chain) TransBlock(tx context.Context, blockByte *bridge.BlockBytes) (*bridge.DhtStatus, error) {
