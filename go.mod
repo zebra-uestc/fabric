@@ -30,7 +30,7 @@ require (
 	github.com/hyperledger/fabric-chaincode-go v0.0.0-20200128192331-2d899240a7ed
 	github.com/hyperledger/fabric-config v0.0.7
 	github.com/hyperledger/fabric-lib-go v1.0.0
-	github.com/hyperledger/fabric-protos-go v0.0.0-20210127161553-4f432a78f286
+	github.com/hyperledger/fabric-protos-go v0.0.0-20210310180610-ddd14b7781ba
 	github.com/konsorten/go-windows-terminal-sequences v1.0.2 // indirect
 	github.com/kr/pretty v0.2.1
 	github.com/mattn/go-runewidth v0.0.4 // indirect
@@ -52,13 +52,13 @@ require (
 	github.com/syndtr/goleveldb v1.0.1-0.20190625010220-02440ea7a285
 	github.com/tedsuo/ifrit v0.0.0-20180802180643-bea94bb476cc
 	github.com/willf/bitset v1.1.10
-	github.com/zebra-uestc/chord v0.0.0-20210310134342-7ed20cc021c3
+	github.com/zebra-uestc/chord v0.0.0-20210310154655-b9e1e9c40740
 	go.etcd.io/etcd v0.5.0-alpha.5.0.20181228115726-23731bf9ba55
 	go.uber.org/zap v1.16.0
 	golang.org/x/crypto v0.0.0-20201221181555-eec23a3978ad
 	golang.org/x/sys v0.0.0-20210309074719-68d13333faf2 // indirect
 	golang.org/x/tools v0.0.0-20201224043029-2b0845dc783e
-	google.golang.org/genproto v0.0.0-20210303154014-9728d6b83eeb // indirect
+	google.golang.org/genproto v0.0.0-20210310155132-4ce2db91004e // indirect
 	google.golang.org/grpc v1.36.0
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/cheggaaa/pb.v1 v1.0.28

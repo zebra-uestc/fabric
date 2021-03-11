@@ -61,7 +61,6 @@ func New() consensus.Consenter {
 }
 
 func (dht *consenter) HandleChain(support consensus.ConsenterSupport, metadata *cb.Metadata) (consensus.Chain, error) {
-	logger.Warningf("Use of the Solo orderer is deprecated and remains only for use in test environments but may be removed in the future.")
 	return NewChain(support), nil
 }
 
@@ -74,8 +73,8 @@ func NewChain(support consensus.ConsenterSupport) *chain {
 	config := &TransportConfig{Addr:"127.0.0.1:8003"}
 	return &chain{
 		support:     support,
-		sendChan:    make(chan *message),
-		receiveChan: make(chan *cb.Block),
+		sendChan:    make(chan *message,  10),
+		receiveChan: make(chan *cb.Block, 10),
 		exitChan:    make(chan struct{}),
 		cnf: 	     config,
 
@@ -160,16 +159,13 @@ func (ch *chain) main() {
 					}
 					//trans cb.env to bm.env
 					// 发送msg
-
-					var mc,mn []byte
-					if msg.configMsg != nil {
-						mc, _ = protoutil.Marshal(msg.configMsg)
-					}
-					if msg.normalMsg != nil {
-						mn, _ = protoutil.Marshal(msg.normalMsg)
-					}
-
-					ch.TransMsgClient(&bridge.Msg{ConfigSeq: msg.configSeq, ConfigMsg: mc, NormalMsg: mn})
+					mc, _ := protoutil.Marshal(msg.configMsg)
+					mn, _ := protoutil.Marshal(msg.normalMsg)
+					ch.TransMsgClient(&bridge.MsgBytes{
+						ConfigSeq: msg.configSeq, 
+						ConfigMsg: mc, 
+						NormalMsg: mn,
+					})
 
 				} else {
 					// ConfigMsg
@@ -183,7 +179,7 @@ func (ch *chain) main() {
 					// 发送msg
 					mc, _ := protoutil.Marshal(msg.configMsg)
 					mn, _ := protoutil.Marshal(msg.normalMsg)
-					ch.TransMsgClient(&bridge.Msg{ConfigSeq: msg.configSeq, ConfigMsg: mc, NormalMsg: mn})
+					ch.TransMsgClient(&bridge.MsgBytes{ConfigSeq: msg.configSeq, ConfigMsg: mc, NormalMsg: mn})
 				}
 			case <-ch.exitChan:
 				logger.Debugf("Exiting")
@@ -199,18 +195,17 @@ func (ch *chain) main() {
 			block := <-ch.receiveChan
 			// write block
 			// multichannel/blockwriter.go/WriteConfigBlock
-			msg, _ := protoutil.ExtractEnvelope(block, 0)
+			// msg, _ := protoutil.ExtractEnvelope(block, 0)
 			// broadcast/broadcast.go/ProcessMessage
 			// 想办法代替这个函数，或者找到这个函数的实现并import
 			// multichannel/registerar.go
 			// 返回消息的通道头，检查是否是配置交易BroadcastChannelSupport(msg *cb.Envelope)
-			isConfig := ch.IsConfig(msg)
-			if !isConfig {
+			// isConfig := ch.IsConfig(msg)
+			// if !isConfig {
 				ch.support.WriteBlock(block, nil)
-			} else {
-				ch.support.WriteConfigBlock(block, nil)
-			}
-			return
+			// } else {
+			// 	ch.support.WriteConfigBlock(block, nil)
+			// }
 		}
 	}()
 }

@@ -6,11 +6,12 @@ import (
 	"log"
 	"time"
 
-	"github.com/gogo/protobuf/proto"
+	// "github.com/gogo/protobuf/proto"
 	"github.com/zebra-uestc/chord/models/bridge"
 	"google.golang.org/grpc"
 
-	cb "github.com/hyperledger/fabric-protos-go/common"
+	// cb "github.com/hyperledger/fabric-protos-go/common"
+	"github.com/hyperledger/fabric/protoutil"
 )
 
 // service BlockTranser{
@@ -34,30 +35,28 @@ func (ch *chain) LoadConfig(ctx context.Context, s *bridge.DhtStatus) (*bridge.C
 }
 
 func (ch *chain) TransBlock(tx context.Context, blockByte *bridge.BlockBytes) (*bridge.DhtStatus, error) {
-	var s *bridge.DhtStatus
-	var err error
-	var block *cb.Block
-	err = proto.Unmarshal(blockByte.BlockPayload,block)
+	block, err := protoutil.UnmarshalBlock(blockByte.BlockPayload)
 	// 把收到的block送入channel。在dht.go里面从channel取出进行writeblock
 	ch.receiveChan <- block
 
-	return s, err
+	return &bridge.DhtStatus{}, err
 }
 
 // client端，不采用transport.go原本实现的接口
-func (ch *chain) TransMsgClient(msg *bridge.Msg) error {
+func (ch *chain) TransMsgClient(msg *bridge.MsgBytes) error {
 	conn, err := grpc.Dial(ch.cnf.Addr, grpc.WithInsecure(), grpc.WithBlock())
 	if err != nil {
 		log.Fatalf("did not connect: %v", err)
 	}
 	client := bridge.NewMsgTranserClient(conn)
 
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	ctx, cancel := context.WithTimeout(context.Background(), 15*time.Minute)
 	defer cancel()
 	_, err = client.TransMsg(ctx, msg)
 
 	if err != nil {
-		log.Fatalf("could not transcation Msg: %v", err)
+		log.Fatalf("could not transcation MsgBytes: %v", err)
 	}
+	println("trans")
 	return err
 }
