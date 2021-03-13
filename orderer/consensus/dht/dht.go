@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
+	"time"
 
 	cb "github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric/common/flogging"
@@ -27,6 +29,16 @@ import (
 type TransportConfig struct {
 	Id   string // node0的id
 	Addr string // node0
+
+	DialOpts []grpc.DialOption
+	Timeout  time.Duration // 作为WithTimeout()函数参数
+	MaxIdle  time.Duration // 超过maxidle自动关闭连接
+
+	pool    map[string]*grpcConn
+	poolMtx sync.RWMutex
+
+	shutdown int32 // 关闭所有连接的标志位
+
 }
 
 var logger = flogging.MustGetLogger("orderer.consensus.dht")
@@ -70,7 +82,16 @@ func (dht *consenter) JoinChain(support consensus.ConsenterSupport, joinBlock *c
 
 func NewChain(support consensus.ConsenterSupport) *chain {
 
-	config := &TransportConfig{Addr: "127.0.0.1:8003"}
+	config := &TransportConfig{Addr: "127.0.0.1:8003", DialOpts: make([]grpc.DialOption, 0, 5), Timeout: 10 * time.Second, MaxIdle: 10}
+	config.DialOpts = append(config.DialOpts,
+		grpc.WithBlock(),
+		//修改超时时间
+		grpc.WithTimeout(1*time.Second), // 与config.Timeout不一样
+		grpc.FailOnNonTempDialError(true),
+		grpc.WithInsecure(),
+	)
+	config.pool = make(map[string]*grpcConn)
+
 	return &chain{
 		support:     support,
 		sendChan:    make(chan *message, 10),
@@ -83,6 +104,7 @@ func NewChain(support consensus.ConsenterSupport) *chain {
 // 外部函数自动调用Start()
 func (ch *chain) Start() {
 	go ch.main()
+	ch.StartReap()
 }
 
 func (ch *chain) Halt() {
@@ -230,7 +252,6 @@ func (ch *chain) main() {
 			// }
 		}
 	}()
-
 
 }
 
