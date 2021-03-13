@@ -2,16 +2,18 @@
 
 After you have downloaded the Hyperledger Fabric Docker images and samples, you
 can deploy a test network by using scripts that are provided in the
-`fabric-samples` repository. You can use the test network to learn about Fabric
-by running nodes on your local machine. More experienced developers can use the
+`fabric-samples` repository. The test network is provided for learning about Fabric
+by running nodes on your local machine. Developers can use the
 network to test their smart contracts and applications. The network is meant to
-be used only as a tool for education and testing. It should not be used as a
-template for deploying a production network. The test network is being introduced
-in Fabric v2.0 as the long term replacement for the `first-network` sample.
+be used only as a tool for education and testing and not as a model for how to set up
+a network. In general, modifications to the scripts are discouraged and could break the network. It is based on a limited configuration that should not be used as a template for deploying a production network:
+- It includes two peer organizations and an ordering organization.
+- For simplicity, a single node Raft ordering service is configured.
+- To reduce complexity, a TLS Certificate Authority (CA) is not deployed. All certificates are issued by the root CAs.
+- The sample network deploys a Fabric network with Docker Compose. Because the
+nodes are isolated within a Docker Compose network, the test network is not configured to connect to other running Fabric nodes.
 
-The sample network deploys a Fabric network with Docker Compose. Because the
-nodes are isolated within a Docker Compose network, the test network is not
-configured to connect to other running fabric nodes.
+To learn how to use Fabric in production, see [Deploying a production network](deployment_guide_overview.html).
 
 **Note:** These instructions have been verified to work against the
 latest stable Docker images and the pre-compiled setup utilities within the
@@ -21,8 +23,17 @@ current master branch, it is possible that you will encounter errors.
 ## Before you begin
 
 Before you can run the test network, you need to clone the `fabric-samples`
-repository and download the Fabric images. Make sure that you have installed
-the [Prerequisites](prereqs.html) and [Installed the Samples, Binaries and Docker Images](install.html).
+repository and download the Fabric images.
+
+**Important:** This tutorial is compatible with the Fabric test network sample v2.2.x. After you have installed the [prerequisites](../getting_started.html),
+**you must run the following command** to clone the required version of the
+[hyperledger/fabric samples](https://github.com/hyperledger/fabric-samples) repository and checkout
+the correct version tag. The command also installs the Hyperledger Fabric platform-specific
+binaries and config files for the version into the `/bin` and `/config` directories of `fabric-samples`.
+
+```
+curl -sSL https://bit.ly/2ysbOFE | bash -s -- 2.2.2 1.4.9
+```
 
 ## Bring up the test network
 
@@ -48,23 +59,6 @@ Usage:
       down - Bring down the network
 
     Flags:
-<<<<<<< HEAD
-    -ca <use CAs> -  create Certificate Authorities to generate the crypto material
-    -c <channel name> - channel name to use (defaults to "mychannel")
-    -s <dbtype> - the database backend to use: goleveldb (default) or couchdb
-    -r <max retry> - CLI times out after certain number of attempts (defaults to 5)
-    -d <delay> - delay duration in seconds (defaults to 3)
-    -ccn <name> - the short name of the chaincode to deploy: basic (default),ledger, private, secured
-    -ccl <language> - the programming language of the chaincode to deploy: go (default), java, javascript, typescript
-    -ccv <version>  - chaincode version. 1.0 (default)
-    -ccs <sequence>  - chaincode definition sequence. Must be an integer, 1 (default), 2, 3, etc
-    -ccp <path>  - Optional, chaincode path. Path to the chaincode. When provided the -ccn will be used as the deployed name and not the short name of the known chaincodes.
-    -cci <fcn name>  - Optional, chaincode init required function to invoke. When provided this function will be invoked after deployment of the chaincode and will define the chaincode as initialization required.
-    -i <imagetag> - the tag to be used to launch the network (defaults to "latest")
-    -cai <ca_imagetag> - the image tag to be used for CA (defaults to "latest")
-    -verbose - verbose mode
-    -h - print this message
-=======
     Used with network.sh up, network.sh createChannel:
     -ca <use CAs> -  Use Certificate Authorities to generate network crypto material
     -c <channel name> - Name of channel to create (defaults to "mychannel")
@@ -77,17 +71,16 @@ Usage:
 
     Used with network.sh deployCC
     -c <channel name> - Name of channel to deploy chaincode to
-    -ccn <name> - Chaincode name. This flag can be used to deploy one of the asset transfer samples to a channel. Sample options: basic (default),ledger, private, sbe, secured
+    -ccn <name> - Chaincode name.
     -ccl <language> - Programming language of the chaincode to deploy: go (default), java, javascript, typescript
     -ccv <version>  - Chaincode version. 1.0 (default), v2, version3.x, etc
     -ccs <sequence>  - Chaincode definition sequence. Must be an integer, 1 (default), 2, 3, etc
-    -ccp <path>  - (Optional) File path to the chaincode. When provided, the -ccn flag will be used only for the chaincode name.
+    -ccp <path>  - File path to the chaincode.
     -ccep <policy>  - (Optional) Chaincode endorsement policy using signature policy syntax. The default policy requires an endorsement from Org1 and Org2
     -cccg <collection-config>  - (Optional) File path to private data collections configuration file
     -cci <fcn name>  - (Optional) Name of chaincode initialization function. When a function is provided, the execution of init will be requested and the function will be invoked.
 
     -h - Print this message
->>>>>>> 9adde2e7d... Update help text in test net tutorial
 
  Possible Mode and flag combinations
    up -ca -r -d -s -i -cai -verbose
@@ -98,7 +91,8 @@ Usage:
  Examples:
    network.sh up createChannel -ca -c mychannel -s couchdb -i 2.0.0
    network.sh createChannel -c channelName
-   network.sh deployCC -ccn basic -ccl javascript
+   network.sh deployCC -ccn basic -ccp ../asset-transfer-basic/chaincode-javascript/ -ccl javascript
+   network.sh deployCC -ccn mychaincode -ccp ./user/mychaincode -ccv 1 -ccl javascript
 ```
 
 From inside the `test-network` directory, run the following command to remove
@@ -122,13 +116,15 @@ Creating network "net_test" with the default driver
 Creating volume "net_orderer.example.com" with default driver
 Creating volume "net_peer0.org1.example.com" with default driver
 Creating volume "net_peer0.org2.example.com" with default driver
-Creating orderer.example.com    ... done
 Creating peer0.org2.example.com ... done
+Creating orderer.example.com    ... done
 Creating peer0.org1.example.com ... done
-CONTAINER ID        IMAGE                               COMMAND             CREATED             STATUS                  PORTS                              NAMES
-8d0c74b9d6af        hyperledger/fabric-orderer:latest   "orderer"           4 seconds ago       Up Less than a second   0.0.0.0:7050->7050/tcp             orderer.example.com
-ea1cf82b5b99        hyperledger/fabric-peer:latest      "peer node start"   4 seconds ago       Up Less than a second   0.0.0.0:7051->7051/tcp             peer0.org1.example.com
-cd8d9b23cb56        hyperledger/fabric-peer:latest      "peer node start"   4 seconds ago       Up 1 second             7051/tcp, 0.0.0.0:9051->9051/tcp   peer0.org2.example.com
+Creating cli                    ... done
+CONTAINER ID   IMAGE                               COMMAND             CREATED         STATUS                  PORTS                                            NAMES
+1667543b5634   hyperledger/fabric-tools:latest     "/bin/bash"         1 second ago    Up Less than a second                                                    cli
+b6b117c81c7f   hyperledger/fabric-peer:latest      "peer node start"   2 seconds ago   Up 1 second             0.0.0.0:7051->7051/tcp                           peer0.org1.example.com
+703ead770e05   hyperledger/fabric-orderer:latest   "orderer"           2 seconds ago   Up Less than a second   0.0.0.0:7050->7050/tcp, 0.0.0.0:7053->7053/tcp   orderer.example.com
+718d43f5f312   hyperledger/fabric-peer:latest      "peer node start"   2 seconds ago   Up 1 second             7051/tcp, 0.0.0.0:9051->9051/tcp                 peer0.org2.example.com
 ```
 
 If you don't get this result, jump down to [Troubleshooting](#troubleshooting)
@@ -147,9 +143,8 @@ docker ps -a
 ```
 
 Each node and user that interacts with a Fabric network needs to belong to an
-organization that is a network member. The group of organizations that are
-members of a Fabric network are often referred to as the consortium. The test
-network has two consortium members, Org1 and Org2. The network also includes one
+organization in order to participate in the network. The test
+network includes two peer organizations, Org1 and Org2. It also includes a single
 orderer organization that maintains the ordering service of the network.
 
 [Peers](peers/peers.html) are the fundamental components of any Fabric network.
@@ -157,7 +152,7 @@ Peers store the blockchain ledger and validate transactions before they are
 committed to the ledger. Peers run the smart contracts that contain the business
 logic that is used to manage the assets on the blockchain ledger.
 
-Every peer in the network needs to belong to a member of the consortium. In the
+Every peer in the network needs to belong to an organization. In the
 test network, each organization operates one peer each, `peer0.org1.example.com`
 and `peer0.org2.example.com`.
 
@@ -173,15 +168,12 @@ An ordering service allows peers to focus on validating transactions and
 committing them to the ledger. After ordering nodes receive endorsed transactions
 from clients, they come to consensus on the order of transactions and then add
 them to blocks. The blocks are then distributed to peer nodes, which add the
-blocks the blockchain ledger. Ordering nodes also operate the system channel
-that defines the capabilities of a Fabric network, such as how blocks are made
-and which version of Fabric that nodes can use. The system channel defines which
-organizations are members of the consortium.
+blocks to the blockchain ledger.
 
 The sample network uses a single node Raft ordering service that is operated by
-the ordering organization. You can see the ordering node running on your machine
+the orderer organization. You can see the ordering node running on your machine
 as `orderer.example.com`. While the test network only uses a single node ordering
-service, a real network would have multiple ordering nodes, operated by one or
+service, a production network would have multiple ordering nodes, operated by one or
 multiple orderer organizations. The different ordering nodes would use the Raft
 consensus algorithm to come to agreement on the order of transactions across
 the network.
@@ -262,15 +254,14 @@ chaincode is ready to be used.
 After you have used the `network.sh` to create a channel, you can start a
 chaincode on the channel using the following command:
 ```
-./network.sh deployCC
+./network.sh deployCC -ccn basic -ccp ../asset-transfer-basic/chaincode-go -ccl go
 ```
 The `deployCC` subcommand will install the **asset-transfer (basic)** chaincode on
 ``peer0.org1.example.com`` and ``peer0.org2.example.com`` and then deploy
 the chaincode on the channel specified using the channel flag (or `mychannel`
 if no channel is specified).  If you are deploying a chaincode for the first
-time, the script will install the chaincode dependencies. By default, The script
-installs the Go version of the asset-transfer (basic) chaincode. However, you can use the
-language flag, `-l`, to install the typescript or javascript versions of the chaincode.
+time, the script will install the chaincode dependencies. You can use the
+language flag, `-l`, to install the Go, typescript or javascript versions of the chaincode.
 You can find the asset-transfer (basic) chaincode in the `asset-transfer-basic` folder of the `fabric-samples`
 directory. This folder contains sample chaincode that are provided as examples and
 used by tutorials to highlight Fabric features.
@@ -308,7 +299,7 @@ export CORE_PEER_ADDRESS=localhost:7051
 The `CORE_PEER_TLS_ROOTCERT_FILE` and `CORE_PEER_MSPCONFIGPATH` environment
 variables point to the Org1 crypto material in the `organizations` folder.
 
-If you used `./network.sh deployCC` to install and start the asset-transfer (basic) chaincode, you can invoke the `InitLedger` function of the (Go) chaincode to put an initial list of assets on the ledger (if using typescript or javascript `./network.sh deployCC -l javascript` for example, you will invoke the `InitLedger` function of the respective chaincodes).
+If you used `./network.sh deployCC -ccl go` to install and start the asset-transfer (basic) chaincode, you can invoke the `InitLedger` function of the (Go) chaincode to put an initial list of assets on the ledger (if using typescript or javascript `./network.sh deployCC -ccl javascript` for example, you will invoke the `InitLedger` function of the respective chaincodes).
 
 Run the following command to initialize the ledger with assets:
 ```
@@ -539,13 +530,7 @@ below provide a guided tour of what happens when you issue the command of
   the crypto material and MSP folders for all three organizations in the
   `organizations` folder.
 
-- The script uses configtxgen tool to create the system channel genesis block.
-  Configtxgen consumes the `TwoOrgsOrdererGenesis`  channel profile in the
-  `configtx/configtx.yaml` file to create the genesis block. The block is stored
-  in the `system-genesis-block` folder.
-
-- Once the organization crypto material and the system channel genesis block have
-  been generated, the `network.sh` can bring up the nodes of the network. The
+- Once the organization crypto material has been generated, the `network.sh` can bring up the nodes of the network. The
   script uses the ``docker-compose-test-net.yaml`` file in the `docker` folder
   to create the peer and orderer nodes. The `docker` folder also contains the
   ``docker-compose-e2e.yaml`` file that brings up the nodes of the network
@@ -555,11 +540,8 @@ below provide a guided tour of what happens when you issue the command of
 
 - If you use the `createChannel` subcommand, `./network.sh` runs the
   `createChannel.sh` script in the `scripts` folder to create a channel
-  using the supplied channel name. The script uses the `configtx.yaml` file to
-  create the channel creation transaction, as well as two anchor peer update
-  transactions. The script uses the peer cli to create the channel, join
-  ``peer0.org1.example.com`` and ``peer0.org2.example.com`` to the channel, and
-  make both of the peers anchor peers.
+  using the supplied channel name. The script uses the `configtxgen` tool to create the channel genesis block
+  based on the `TwoOrgsApplicationGenesis` channel profile in the `configtx/configtx.yaml` file. After creating the channel, the script uses the peer cli to join ``peer0.org1.example.com`` and ``peer0.org2.example.com`` to the channel, and make both of the peers anchor peers.
 
 - If you issue the `deployCC` command, `./network.sh` runs the ``deployCC.sh``
   script to install the **asset-transfer (basic)** chaincode on both peers and then define then
@@ -660,16 +642,6 @@ If you have any problems with the tutorial, review the following:
    ```
    :set ff=unix
    ```
-
-- If your orderer exits upon creation or if you see that the create channel
-  command fails due to an inability to connect to your ordering service, use
-  the `docker logs` command to read the logs from the ordering node. You may see
-  the following message:
-  ```
-  PANI 007 [channel system-channel] config requires unsupported orderer capabilities: Orderer capability V2_0 is required but not supported: Orderer capability V2_0 is required but not supported
-  ```
-  This occurs when you are trying to run the network using Fabric version 1.4.x
-  docker images. The test network needs to run using Fabric version 2.x.
 
 If you continue to see errors, share your logs on the **fabric-questions**
 channel on [Hyperledger Rocket Chat](https://chat.hyperledger.org/home) or on
