@@ -10,7 +10,6 @@ import (
 	"time"
 
 	// "github.com/gogo/protobuf/proto"
-	"github.com/zebra-uestc/chord/config"
 	"github.com/zebra-uestc/chord/models/bridge"
 	"google.golang.org/grpc"
 
@@ -78,19 +77,16 @@ func (ch *chain) TransMsgClient() error {
 	if err != nil{
 		log.Fatalf("Can't connect: %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), config.GrpcTimeout)
-	defer cancel()
-	sender, err := client.TransMsg(ctx)
+	sender, err := client.TransMsg(context.Background())
 	if err != nil{
 		return err
 	}
 
 	for msg := range ch.sendMsgChan {
-		go sender.Send(msg)
+		sender.Send(msg)
 	}
 
 	_, err = sender.CloseAndRecv()
-
 	if err != nil {
 		log.Fatalf("could not transcation MsgBytes: %v", err)
 	}
