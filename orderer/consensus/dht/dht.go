@@ -24,6 +24,7 @@ import (
 	"github.com/zebra-uestc/chord/models/bridge"
 
 	"google.golang.org/grpc"
+	"github.com/zebra-uestc/chord/config"
 )
 
 type TransportConfig struct {
@@ -82,7 +83,7 @@ func (dht *consenter) JoinChain(support consensus.ConsenterSupport, joinBlock *c
 
 func NewChain(support consensus.ConsenterSupport) *chain {
 
-	config := &TransportConfig{Addr: "127.0.0.1:8003"}
+	config := &TransportConfig{Addr: config.MainNodeAddressMsg}
 	return &chain{
 		support:     support,
 		sendChan:    make(chan *message, 10),
@@ -163,7 +164,7 @@ func (ch *chain) main() {
 	// var timer <-chan time.Time
 	var err error
 	// Start RPC server
-	ch.StartTransBlockServer("127.0.0.1:6666")
+	ch.StartTransBlockServer(config.OrdererAddress)
 
 	var cnt uint = 0
 
@@ -255,7 +256,6 @@ func (ch *chain) main() {
 			// }
 		}
 	}()
-
 }
 
 func (ch *chain) StartTransBlockServer(address string) {
@@ -291,50 +291,3 @@ func (ch *chain) IsConfig(msg *cb.Envelope) bool {
 	}
 	return isConfig
 }
-
-// func (ch *chain) ConvertEnvelope(msg *cb.Envelope) *bridge.Envelope {
-// 	var ret *bridge.Envelope
-// 	ret.Payload = msg.Payload
-// 	ret.Signature = msg.Signature
-// 	return ret
-// }
-
-// func (ch *chain) ConvertMessage(msg *message) *bridge.Msg {
-// 	var ret *bridge.Msg
-// 	ret.ConfigSeq = msg.configSeq
-// 	ret.ConfigMsg = ch.ConvertEnvelope(msg.configMsg)
-// 	ret.NormalMsg = ch.ConvertEnvelope(msg.normalMsg)
-// 	return ret
-// }
-
-// func (ch *chain) ConvertBlock(block *bridge.Block) *cb.Block {
-// 	var ret *cb.Block
-// 	ret.Data = ch.ConvertBlockData(block.Data)
-// 	ret.Header = ch.ConvertBlockHeader(block.Header)
-// 	ret.Metadata = ch.ConvertBlockMetadata(block.Metadata)
-
-// 	return ret
-// }
-
-// func (ch *chain) ConvertBlockData(data *bridge.BlockData) *cb.BlockData {
-// 	var ret *cb.BlockData
-// 	ret.Data = data.Data
-
-// 	return ret
-// }
-
-// func (ch *chain) ConvertBlockHeader(bh *bridge.BlockHeader) *cb.BlockHeader {
-// 	var ret *cb.BlockHeader
-// 	ret.DataHash = bh.DataHash
-// 	ret.Number = bh.Number
-// 	ret.PreviousHash = bh.PreviousHash
-
-// 	return ret
-// }
-
-// func (ch *chain) ConvertBlockMetadata(m *bridge.BlockMetadata) *cb.BlockMetadata {
-// 	var ret *cb.BlockMetadata
-// 	ret.Metadata = m.Metadata
-
-// 	return ret
-// }
