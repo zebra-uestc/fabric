@@ -176,8 +176,8 @@ func (ch *chain) main() {
 					}
 					//trans cb.env to bm.env
 					// 发送msg
-					cnt = cnt + 1
-					fmt.Println("trans", cnt)
+					// cnt = cnt + 1
+					// fmt.Println("trans", cnt)
 
 					mc, _ := protoutil.Marshal(msg.configMsg)
 					mn, _ := protoutil.Marshal(msg.normalMsg)
