@@ -10,6 +10,7 @@ import (
 	"time"
 
 	// "github.com/gogo/protobuf/proto"
+	"github.com/zebra-uestc/chord/config"
 	"github.com/zebra-uestc/chord/models/bridge"
 	"google.golang.org/grpc"
 
@@ -74,13 +75,18 @@ func (ch *chain) TransBlock(tx context.Context, blockByte *bridge.BlockBytes) (*
 // client端，不采用transport.go原本实现的接口
 func (ch *chain) TransMsgClient() error {
 	client, err := ch.getConn(ch.cnf.Addr)
-
-	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	if err != nil{
+		log.Fatalf("Can't connect: %v", err)
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), config.GrpcTimeout)
 	defer cancel()
 	sender, err := client.TransMsg(ctx)
+	if err != nil{
+		return err
+	}
 
 	for msg := range ch.sendMsgChan {
-		sender.Send(msg)
+		go sender.Send(msg)
 	}
 
 	_, err = sender.CloseAndRecv()
@@ -170,21 +176,6 @@ func (g *chain) getConn(
 	g.cnf.poolMtx.Unlock()
 
 	return client, nil
-}
-
-// Returns an outbound TCP connection to the pool
-func (g *chain) returnConn(o *grpcConn) {
-	// Update the last asctive time
-	o.lastActive = time.Now()
-
-	// Push back into the pool
-	g.cnf.poolMtx.Lock()
-	defer g.cnf.poolMtx.Unlock()
-	if atomic.LoadInt32(&g.cnf.shutdown) == 1 {
-		o.conn.Close()
-		return
-	}
-	g.cnf.pool[o.addr] = o
 }
 
 // Close all outbound connection in the pool

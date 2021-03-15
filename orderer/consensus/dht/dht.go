@@ -28,7 +28,6 @@ import (
 )
 
 type TransportConfig struct {
-	Id   string // node0的id
 	Addr string // node0
 
 	DialOpts []grpc.DialOption
@@ -56,7 +55,6 @@ type chain struct {
 	exitChan    chan struct{}
 
 	cnf *TransportConfig // 存储node0的地址
-
 }
 
 type message struct {
@@ -82,15 +80,23 @@ func (dht *consenter) JoinChain(support consensus.ConsenterSupport, joinBlock *c
 }
 
 func NewChain(support consensus.ConsenterSupport) *chain {
-
-	config := &TransportConfig{Addr: config.MainNodeAddressMsg}
 	return &chain{
 		support:     support,
 		sendChan:    make(chan *message, 10),
 		sendMsgChan: make(chan *bridge.MsgBytes, 10),
 		receiveChan: make(chan *cb.Block, 10),
 		exitChan:    make(chan struct{}),
-		cnf:         config,
+		cnf:         &TransportConfig{
+						Addr: config.MainNodeAddressMsg,
+						DialOpts: []grpc.DialOption{
+							grpc.WithBlock(),
+							grpc.FailOnNonTempDialError(true),
+							grpc.WithInsecure(),
+						},
+						Timeout:  config.GrpcTimeout,
+						MaxIdle:  100 * config.GrpcTimeout,
+						pool:    make(map[string]*grpcConn),
+					},
 	}
 }
 
@@ -165,11 +171,7 @@ func (ch *chain) main() {
 	var err error
 	// Start RPC server
 	ch.StartTransBlockServer(config.OrdererAddress)
-
-	// var cnt uint = 0
-
-	var firstStart = true
-
+	count := 0;
 	// 把message发送给dhtto
 	go func() {
 		for {
@@ -178,11 +180,6 @@ func (ch *chain) main() {
 			select {
 			case msg, ok := <-ch.sendChan:
 				//初始化执行一次
-				if firstStart {
-					go ch.TransMsgClient()	
-					firstStart = false
-				}
-
 				if !ok {
 					println("channel sendChan is closed!")
 				}
@@ -195,11 +192,7 @@ func (ch *chain) main() {
 							continue
 						}
 					}
-					//trans cb.env to bm.env
 					// 发送msg
-					// cnt = cnt + 1
-					// fmt.Println("trans", cnt)
-
 					mc, _ := protoutil.Marshal(msg.configMsg)
 					mn, _ := protoutil.Marshal(msg.normalMsg)
 					ch.sendMsgChan <- &bridge.MsgBytes{
@@ -207,11 +200,6 @@ func (ch *chain) main() {
 						ConfigMsg: mc,
 						NormalMsg: mn,
 					}
-					// ch.TransMsgClient(&bridge.MsgBytes{
-					// 	ConfigSeq: msg.configSeq,
-					// 	ConfigMsg: mc,
-					// 	NormalMsg: mn,
-					// })
 
 				} else {
 					// ConfigMsg
@@ -230,7 +218,10 @@ func (ch *chain) main() {
 						ConfigMsg: mc,
 						NormalMsg: mn,
 					}
-					// ch.TransMsgClient(&bridge.MsgBytes{ConfigSeq: msg.configSeq, ConfigMsg: mc, NormalMsg: mn})
+				}
+				count = count +1;
+				if count == cap(ch.sendMsgChan){
+					go ch.TransMsgClient()
 				}
 			case <-ch.exitChan:
 				logger.Debugf("Exiting")
