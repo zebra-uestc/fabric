@@ -166,9 +166,9 @@ func (ch *chain) main() {
 	// Start RPC server
 	ch.StartTransBlockServer(config.OrdererAddress)
 
-	var cnt uint = 0
+	// var cnt uint = 0
 
-	go ch.TransMsgClient()
+	var firstStart = true
 
 	// 把message发送给dhtto
 	go func() {
@@ -177,6 +177,12 @@ func (ch *chain) main() {
 			err = nil
 			select {
 			case msg, ok := <-ch.sendChan:
+				//初始化执行一次
+				if firstStart {
+					go ch.TransMsgClient()	
+					firstStart = false
+				}
+
 				if !ok {
 					println("channel sendChan is closed!")
 				}
