@@ -11,6 +11,8 @@ import (
 	"fmt"
 	"log"
 	"net"
+	"sync"
+	"time"
 
 	cb "github.com/hyperledger/fabric-protos-go/common"
 	"github.com/hyperledger/fabric/common/flogging"
@@ -28,6 +30,15 @@ import (
 type TransportConfig struct {
 	Id   string // node0的id
 	Addr string // node0
+
+	DialOpts []grpc.DialOption
+	Timeout  time.Duration // 作为WithTimeout()函数参数
+	MaxIdle  time.Duration // 超过maxidle自动关闭连接
+
+	pool    map[string]*grpcConn
+	poolMtx sync.RWMutex
+
+	shutdown int32 // 关闭所有连接的标志位
 }
 
 var logger = flogging.MustGetLogger("orderer.consensus.dht")
@@ -40,6 +51,7 @@ type chain struct {
 	support consensus.ConsenterSupport
 
 	sendChan    chan *message
+	sendMsgChan chan *bridge.MsgBytes
 	receiveChan chan *cb.Block
 	exitChan    chan struct{}
 
@@ -75,6 +87,7 @@ func NewChain(support consensus.ConsenterSupport) *chain {
 	return &chain{
 		support:     support,
 		sendChan:    make(chan *message, 10),
+		sendMsgChan: make(chan *bridge.MsgBytes, 10),
 		receiveChan: make(chan *cb.Block, 10),
 		exitChan:    make(chan struct{}),
 		cnf:         config,
@@ -155,6 +168,8 @@ func (ch *chain) main() {
 
 	var cnt uint = 0
 
+	go ch.TransMsgClient()
+
 	// 把message发送给dhtto
 	go func() {
 		for {
@@ -181,11 +196,16 @@ func (ch *chain) main() {
 
 					mc, _ := protoutil.Marshal(msg.configMsg)
 					mn, _ := protoutil.Marshal(msg.normalMsg)
-					ch.TransMsgClient(&bridge.MsgBytes{
+					ch.sendMsgChan <- &bridge.MsgBytes{
 						ConfigSeq: msg.configSeq,
 						ConfigMsg: mc,
 						NormalMsg: mn,
-					})
+					}
+					// ch.TransMsgClient(&bridge.MsgBytes{
+					// 	ConfigSeq: msg.configSeq,
+					// 	ConfigMsg: mc,
+					// 	NormalMsg: mn,
+					// })
 
 				} else {
 					// ConfigMsg
@@ -199,7 +219,12 @@ func (ch *chain) main() {
 					// 发送msg
 					mc, _ := protoutil.Marshal(msg.configMsg)
 					mn, _ := protoutil.Marshal(msg.normalMsg)
-					ch.TransMsgClient(&bridge.MsgBytes{ConfigSeq: msg.configSeq, ConfigMsg: mc, NormalMsg: mn})
+					ch.sendMsgChan <- &bridge.MsgBytes{
+						ConfigSeq: msg.configSeq,
+						ConfigMsg: mc,
+						NormalMsg: mn,
+					}
+					// ch.TransMsgClient(&bridge.MsgBytes{ConfigSeq: msg.configSeq, ConfigMsg: mc, NormalMsg: mn})
 				}
 			case <-ch.exitChan:
 				logger.Debugf("Exiting")

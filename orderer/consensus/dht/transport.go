@@ -2,6 +2,9 @@ package dht
 
 import (
 	"context"
+	"errors"
+	"fmt"
+	"sync/atomic"
 
 	"log"
 	"time"
@@ -26,6 +29,17 @@ import (
 // service MsgTranser{
 //     rpc TransMsg(Msg) returns (DhtStatus){};
 // }
+
+func Dial(addr string, opts ...grpc.DialOption) (*grpc.ClientConn, error) {
+	return grpc.Dial(addr, opts...)
+}
+
+type grpcConn struct {
+	addr       string
+	client     bridge.MsgTranserClient
+	conn       *grpc.ClientConn
+	lastActive time.Time
+}
 
 // server端 TODO
 func (ch *chain) LoadConfig(ctx context.Context, s *bridge.DhtStatus) (*bridge.Config, error) {
@@ -58,21 +72,135 @@ func (ch *chain) TransBlock(tx context.Context, blockByte *bridge.BlockBytes) (*
 }
 
 // client端，不采用transport.go原本实现的接口
-func (ch *chain) TransMsgClient(msg *bridge.MsgBytes) error {
-	conn, err := grpc.Dial(ch.cnf.Addr, grpc.WithInsecure(), grpc.WithBlock())
-	if err != nil {
-		log.Fatalf("did not connect: %v", err)
-	}
-	client := bridge.NewMsgTranserClient(conn)
+func (ch *chain) TransMsgClient() error {
+	client, err := ch.getConn(ch.cnf.Addr)
 
 	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
 	defer cancel()
-	_, err = client.TransMsg(ctx, msg)
+	sender, err := client.TransMsg(ctx)
+
+	for msg := range ch.sendMsgChan {
+		sender.Send(msg)
+	}
+
+	_, err = sender.CloseAndRecv()
 
 	if err != nil {
 		log.Fatalf("could not transcation MsgBytes: %v", err)
 	}
-	conn.Close()
-	// println("trans")
+
 	return err
+}
+
+func (g *grpcConn) Close() {
+	g.conn.Close()
+}
+
+func (g *chain) StartReap() error {
+	// Start RPC server
+	// go g.listen()
+
+	// Reap old connections
+	go g.reapOld()
+
+	return nil
+
+}
+
+// Closes old outbound connections
+func (g *chain) reapOld() {
+	ticker := time.NewTicker(60 * time.Second)
+
+	for {
+		if atomic.LoadInt32(&g.cnf.shutdown) == 1 {
+			return
+		}
+		select {
+		case <-ticker.C:
+			g.reap()
+		}
+
+	}
+}
+
+func (g *chain) reap() {
+	g.cnf.poolMtx.Lock()
+	defer g.cnf.poolMtx.Unlock()
+	for host, conn := range g.cnf.pool {
+		if time.Since(conn.lastActive) > g.cnf.MaxIdle {
+			conn.Close()
+			delete(g.cnf.pool, host)
+		}
+	}
+}
+
+// Gets an outbound connection to a host
+func (g *chain) getConn(
+	addr string,
+) (bridge.MsgTranserClient, error) {
+
+	g.cnf.poolMtx.RLock()
+
+	if atomic.LoadInt32(&g.cnf.shutdown) == 1 {
+		g.cnf.poolMtx.Unlock()
+		return nil, fmt.Errorf("TCP transport is shutdown")
+	}
+
+	cc, ok := g.cnf.pool[addr]
+	g.cnf.poolMtx.RUnlock()
+	if ok {
+		return cc.client, nil
+	}
+
+	var conn *grpc.ClientConn
+	var err error
+	conn, err = Dial(addr, g.cnf.DialOpts...)
+	if err != nil {
+		return nil, err
+	}
+
+	client := bridge.NewMsgTranserClient(conn)
+	cc = &grpcConn{addr, client, conn, time.Now()}
+	g.cnf.poolMtx.Lock()
+	if g.cnf.pool == nil {
+		g.cnf.poolMtx.Unlock()
+		return nil, errors.New("must instantiate node before using")
+	}
+	g.cnf.pool[addr] = cc
+	g.cnf.poolMtx.Unlock()
+
+	return client, nil
+}
+
+// Returns an outbound TCP connection to the pool
+func (g *chain) returnConn(o *grpcConn) {
+	// Update the last asctive time
+	o.lastActive = time.Now()
+
+	// Push back into the pool
+	g.cnf.poolMtx.Lock()
+	defer g.cnf.poolMtx.Unlock()
+	if atomic.LoadInt32(&g.cnf.shutdown) == 1 {
+		o.conn.Close()
+		return
+	}
+	g.cnf.pool[o.addr] = o
+}
+
+// Close all outbound connection in the pool
+func (g *chain) Stop() error {
+	atomic.StoreInt32(&g.cnf.shutdown, 1)
+
+	// Close all the connections
+	g.cnf.poolMtx.Lock()
+
+	// g.server.Stop()
+	for _, conn := range g.cnf.pool {
+		conn.Close()
+	}
+	g.cnf.pool = nil
+
+	g.cnf.poolMtx.Unlock()
+
+	return nil
 }

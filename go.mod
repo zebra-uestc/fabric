@@ -5,6 +5,8 @@ go 1.14
 // https://github.com/golang/go/issues/34610
 replace golang.org/x/sys => golang.org/x/sys v0.0.0-20190920190810-ef0ce1748380
 
+// replace github.com/zebra-uestc/chord => /home/liruoxin/GOPATH/src/github.com/zebra-uestc/chord
+
 require (
 	code.cloudfoundry.org/clock v1.0.0
 	github.com/Knetic/govaluate v3.0.0+incompatible
@@ -61,6 +63,7 @@ require (
 	golang.org/x/sys v0.0.0-20210313110737-8e9fff1a3a18 // indirect
 	golang.org/x/tools v0.0.0-20201224043029-2b0845dc783e
 	google.golang.org/grpc v1.36.0
+	google.golang.org/protobuf v1.25.0
 	gopkg.in/alecthomas/kingpin.v2 v2.2.6
 	gopkg.in/cheggaaa/pb.v1 v1.0.28
 	gopkg.in/ini.v1 v1.62.0 // indirect
