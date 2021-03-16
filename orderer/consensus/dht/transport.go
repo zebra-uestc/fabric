@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"sync/atomic"
 
 	"log"
@@ -61,24 +62,44 @@ func (ch *chain) LoadConfig(ctx context.Context, s *bridge.DhtStatus) (*bridge.C
 	return &bridge.Config{}, nil
 }
 
-func (ch *chain) TransBlock(tx context.Context, blockByte *bridge.BlockBytes) (*bridge.DhtStatus, error) {
-	block, err := protoutil.UnmarshalBlock(blockByte.BlockPayload)
-	// 把收到的block送入channel。在dht.go里面从channel取出进行writeblock
-	// println("trans block1", block.Header.Number)
-	ch.receiveChan <- block
-	// println("trans block2", block.Header.Number)
+// func (ch *chain) TransBlock(tx context.Context, blockByte *bridge.BlockBytes) (*bridge.DhtStatus, error) {
+// 	block, err := protoutil.UnmarshalBlock(blockByte.BlockPayload)
+// 	// 把收到的block送入channel。在dht.go里面从channel取出进行writeblock
+// 	// println("trans block1", block.Header.Number)
+// 	ch.receiveChan <- block
+// 	// println("trans block2", block.Header.Number)
 
-	return &bridge.DhtStatus{}, err
+// 	return &bridge.DhtStatus{}, err
+// }
+
+func (ch *chain) TransBlock(receiver bridge.BlockTranser_TransBlockServer) error {
+	for {
+		blockByte, err := receiver.Recv()
+		if err == io.EOF {
+			return receiver.SendAndClose(&bridge.DhtStatus{})
+		}
+		if err != nil {
+			log.Fatalln("Receive Msg from orderer err:", err)
+			return err
+		}
+		block, err := protoutil.UnmarshalBlock(blockByte.BlockPayload)
+		ch.receiveChan <- block
+
+	}
+
+	return nil
 }
 
 // client端，不采用transport.go原本实现的接口
 func (ch *chain) TransMsgClient() error {
 	client, err := ch.getConn(ch.cnf.Addr)
-	if err != nil{
+	if err != nil {
 		log.Fatalf("Can't connect: %v", err)
 	}
-	sender, err := client.TransMsg(context.Background())
-	if err != nil{
+	ctx, cancel := context.WithTimeout(context.Background(), ch.cnf.Timeout)
+	defer cancel()
+	sender, err := client.TransMsg(ctx)
+	if err != nil {
 		return err
 	}
 
