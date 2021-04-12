@@ -86,17 +86,16 @@ func (ch *chain) TransBlock(receiver bridge.BlockTranser_TransBlockServer) error
 		ch.receiveChan <- block
 
 	}
-
-	return nil
 }
 
 // client端，不采用transport.go原本实现的接口
 func (ch *chain) TransMsgClient() error {
+	println("start transMsgclient")
 	client, err := ch.getConn(ch.cnf.Addr)
 	if err != nil {
 		log.Fatalf("Can't connect: %v", err)
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), ch.cnf.Timeout)
+	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	sender, err := client.TransMsg(ctx)
 	if err != nil {
