@@ -717,6 +717,10 @@ Profiles:
                   Port: 7050
                   ClientTLSCert: crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/tls/server.crt
                   ServerTLSCert: crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/tls/server.crt
+                - Host: orderer1.example.com
+                  Port: 7050
+                  ClientTLSCert: crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/tls/server.crt
+                  ServerTLSCert: crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/tls/server.crt
                 - Host: orderer2.example.com
                   Port: 7050
                   ClientTLSCert: crypto-config/ordererOrganizations/example.com/orderers/orderer2.example.com/tls/server.crt
@@ -752,6 +756,7 @@ Profiles:
 
             Addresses:
                 - orderer.example.com:7050
+                - orderer1.example.com:7050
                 - orderer2.example.com:7050
                 - orderer3.example.com:7050
                 - orderer4.example.com:7050
