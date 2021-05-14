@@ -16,13 +16,13 @@ networks:
 
 services:
 
-  orderer.example.com:
-    extends:
-      file:   base/docker-compose-base.yaml
-      service: orderer.example.com
-    container_name: orderer.example.com
-    networks:
-      - byfn
+  # orderer.example.com:
+  #   extends:
+  #     file: base/docker-compose-base.yaml
+  #     service: orderer.example.com
+  #   container_name: orderer.example.com
+  #   networks:
+  #     - byfn
 
   peer0.org1.example.com:
     container_name: peer0.org1.example.com
@@ -31,7 +31,8 @@ services:
       service: peer0.org1.example.com
     networks:
       - byfn
-
+    extra_hosts:
+      - "orderer.example.com:10.206.0.10"
   cli:
     container_name: cli
     image: hyperledger/fabric-tools:2.3
@@ -64,3 +65,5 @@ services:
       - peer0.org1.example.com
     networks:
       - byfn
+    extra_hosts:
+      - "orderer.example.com:10.206.0.10"

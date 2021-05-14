@@ -32,6 +32,8 @@ services:
         - orderer4.example.com:/var/hyperledger/production/orderer
     ports:
     - 7050:7050
+    extra_hosts:
+      - "orderer.example.com:10.206.0.10"
 
   orderer5.example.com:
     extends:
@@ -47,6 +49,8 @@ services:
         - orderer5.example.com:/var/hyperledger/production/orderer
     ports:
     - 7150:7050
+    extra_hosts:
+      - "orderer.example.com:10.206.0.10"
 
   orderer6.example.com:
     extends:
@@ -62,6 +66,8 @@ services:
         - orderer6.example.com:/var/hyperledger/production/orderer
     ports:
     - 7250:7050
+    extra_hosts:
+      - "orderer.example.com:10.206.0.10"
 
   peer0.org2.example.com:
     container_name: peer0.org2.example.com
@@ -70,3 +76,5 @@ services:
       service: peer0.org2.example.com
     networks:
       - byfn
+    extra_hosts:
+      - "orderer.example.com:10.206.0.10"      
