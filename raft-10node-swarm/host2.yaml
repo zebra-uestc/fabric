@@ -18,7 +18,7 @@ networks:
 
 services:
 
- orderer1.example.com:
+  orderer1.example.com:
     extends:
       file: base/peer-base.yaml
       service: orderer-base
