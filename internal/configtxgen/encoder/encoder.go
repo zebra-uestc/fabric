@@ -36,7 +36,7 @@ var logger = flogging.MustGetLogger("common.tools.configtxgen.encoder")
 const (
 	// ConsensusTypeSolo identifies the solo consensus implementation.
 	ConsensusTypeSolo = "solo"
-	ConsensusTypeDht  = "dht"
+
 	// ConsensusTypeKafka identifies the Kafka-based consensus implementation.
 	ConsensusTypeKafka = "kafka"
 	// ConsensusTypeKafka identifies the Kafka-based consensus implementation.
@@ -201,7 +201,6 @@ func NewOrdererGroup(conf *genesisconfig.Orderer) (*cb.ConfigGroup, error) {
 
 	switch conf.OrdererType {
 	case ConsensusTypeSolo:
-	case ConsensusTypeDht:
 	case ConsensusTypeKafka:
 		addValue(ordererGroup, channelconfig.KafkaBrokersValue(conf.Kafka.Brokers), channelconfig.AdminsPolicyKey)
 	case ConsensusTypeEtcdRaft:
