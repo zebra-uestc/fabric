@@ -28,7 +28,7 @@ General:
         RootCAs:
           - crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/tls/ca.crt
         ClientAuthRequired: false
-        ClientRootCAs:
+        ClientRootCAs: crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/tls/ca.crt
     # Keepalive settings for the GRPC server.
     Keepalive:
         # ServerMinInterval is the minimum permitted time between client pings.
