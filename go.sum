@@ -311,6 +311,8 @@ github.com/zebra-uestc/chord v0.0.0-20210313054530-a005343a6e2b h1:/cAR7tV9r71vw
 github.com/zebra-uestc/chord v0.0.0-20210313054530-a005343a6e2b/go.mod h1:DwMueNG8F9djGkNTA8ngPOVdKCHddsZdaf30OKhEUVE=
 github.com/zebra-uestc/chord v0.0.0-20210315144940-50b008ee5572 h1:frc406QZxeaEdA3qzU48JIeYzBxYpVFkCADzQxJBxeY=
 github.com/zebra-uestc/chord v0.0.0-20210315144940-50b008ee5572/go.mod h1:Yf2DiKravAwsekyZ7eoX0shfL9ob1ierJ83G4UZ/jY4=
+github.com/zebra-uestc/chord v0.0.0-20210412072323-d42a664edf9e h1:wM/DDr2lsoSkj5q8VLphldCNW0EvrrEusw3CndmTi3Q=
+github.com/zebra-uestc/chord v0.0.0-20210412072323-d42a664edf9e/go.mod h1:b5tA06enzkrbJFqCsooK+S604RC1tJpdKZn3gxc9GC8=
 go.etcd.io/bbolt v1.3.1-etcd.7/go.mod h1:IbVyRI1SCnLcuJnV2u8VeU0CEYM7e686BmAb1XKL+uU=
 go.etcd.io/etcd v0.5.0-alpha.5.0.20181228115726-23731bf9ba55 h1:YTC92EdyM9lnD0aVRqN28/CILPLZSzdmoomOFAjxBbk=
 go.etcd.io/etcd v0.5.0-alpha.5.0.20181228115726-23731bf9ba55/go.mod h1:weASp41xM3dk0YHg1s/W8ecdGP5G4teSTMBPpYAaUgA=
@@ -414,6 +416,7 @@ google.golang.org/grpc v1.25.1/go.mod h1:c3i+UQWmh7LiEpx4sFZnkU36qjEYZ0imhYfXVyQ
 google.golang.org/grpc v1.27.0/go.mod h1:qbnxyOmOxrQa7FizSgH+ReBfzJrCY1pSN7KXBS8abTk=
 google.golang.org/grpc v1.36.0 h1:o1bcQ6imQMIOpdrO3SWf2z5RV72WbDwdXuK0MDlc8As=
 google.golang.org/grpc v1.36.0/go.mod h1:qjiiYl8FncCW8feJPdyg3v6XW24KsRHe+dy9BAGRRjU=
+google.golang.org/grpc/cmd/protoc-gen-go-grpc v1.1.0/go.mod h1:6Kw0yEErY5E/yWrBtf03jp27GLLJujG4z/JK95pnjjw=
 google.golang.org/protobuf v0.0.0-20200109180630-ec00e32a8dfd/go.mod h1:DFci5gLYBciE7Vtevhsrf46CRTquxDuWsQurQQe4oz8=
 google.golang.org/protobuf v0.0.0-20200221191635-4d8936d0db64/go.mod h1:kwYJMbMJ01Woi6D6+Kah6886xMZcty6N08ah7+eCXa0=
 google.golang.org/protobuf v0.0.0-20200228230310-ab0ca4ff8a60/go.mod h1:cfTl7dwQJ+fmap5saPgwCLgHXTUD7jkjRqWcaiX5VyM=
