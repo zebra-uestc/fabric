@@ -27,7 +27,7 @@ General:
         Certificate: crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/tls/server.crt
         RootCAs:
           - crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/tls/ca.crt
-        ClientAuthRequired: false
+        ClientAuthRequired: true
         ClientRootCAs: crypto-config/ordererOrganizations/example.com/orderers/orderer.example.com/tls/ca.crt
     # Keepalive settings for the GRPC server.
     Keepalive:
